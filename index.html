@@ -1,0 +1,2233 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Arquitectura es jugar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
+<style>
+/* =========================================================
+   1. TOKENS DE DISEÑO (colores, tipografía, radios)
+   Cambia aquí los colores de los jugadores y del tablero.
+   ========================================================= */
+:root{
+  --paper:#FFFFFF; --surface:#FFFFFF; --raised:#FFFFFF;
+  --ink:#000000; --ink-2:#5E5E5A; --line:#A8A8A2;
+  --board:#E0E0DC; --cell:#EDEDE9; --cell-lo:#C6C6C0; --cell-hi:#F8F8F5;
+  --ramp-lo:#EDEDE9; --ramp-hi:#000000;
+  --blue:#0A3DFF; --yellow:#FFD500; --red:#F0281C; --green:#00A04A;
+  --sand:#E3D3AE; --wood:#C49A6C; --leaf:#5AB476;
+  --font:"Archivo","Helvetica Neue",Arial,sans-serif;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root[data-theme="auto-oscuro"]{
+    --paper:#121212; --surface:#181818; --raised:#1F1F1F;
+    --ink:#F4F4F0; --ink-2:#A3A39E; --line:#4A4A46;
+    --board:#262626; --cell:#303030; --cell-lo:#1A1A1A; --cell-hi:#3A3A3A;
+    --ramp-lo:#303030; --ramp-hi:#F4F4F0;
+    --sand:#8C7A55; --wood:#8E6C48; --leaf:#3F8F58;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#121212; --surface:#181818; --raised:#1F1F1F;
+  --ink:#F4F4F0; --ink-2:#A3A39E; --line:#4A4A46;
+  --board:#262626; --cell:#303030; --cell-lo:#1A1A1A; --cell-hi:#3A3A3A;
+  --ramp-lo:#303030; --ramp-hi:#F4F4F0;
+  --sand:#8C7A55; --wood:#8E6C48; --leaf:#3F8F58;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;height:100%;display:flex;flex-direction:column;background:var(--paper);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+img{max-width:100%}
+button,select,input,textarea{font:inherit;color:inherit}
+
+/* =========================================================
+   2. CABECERA Y PASOS
+   ========================================================= */
+.top{display:flex;align-items:center;gap:20px;padding:12px 20px;border-bottom:2px solid var(--ink);background:var(--paper);flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px;color:inherit;text-decoration:none}
+.mark{width:34px;height:34px;flex:none}
+.word{font-weight:860;font-stretch:118%;font-size:24px;letter-spacing:-.005em;line-height:1}
+.tag{font-size:13px;color:var(--ink-2);max-width:18ch;line-height:1.2;padding-left:12px;border-left:2px solid var(--line)}
+.steps{display:flex;gap:4px;margin-left:auto;flex-wrap:wrap}
+.steps a{display:flex;align-items:center;gap:8px;padding:5px 12px 5px 5px;border-radius:10px;border:2px solid transparent;color:var(--ink);text-decoration:none;font-weight:650;font-size:14px}
+.steps a b{display:grid;place-items:center;width:24px;height:24px;border-radius:6px;background:var(--raised);border:2px solid var(--ink);font-size:12px;font-weight:800}
+.steps a:hover{background:var(--surface)}
+.steps a[aria-current="page"]{border-color:var(--ink);background:var(--raised);box-shadow:0 3px 0 var(--ink)}
+.steps a[aria-current="page"] b{background:var(--ink);color:var(--paper)}
+.reflink{display:inline-flex;align-items:center;padding:7px 12px;border:1px solid var(--ink);color:var(--ink);text-decoration:none;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.reflink:hover,.reflink[aria-current="page"]{background:var(--ink);color:var(--paper)}
+.reflink:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+.steps a:focus-visible,.btn:focus-visible,.tp:focus-visible,canvas:focus-visible,.seg button:focus-visible,.cat-cell:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+
+/* =========================================================
+   3. ESTRUCTURA DE VISTAS
+   ========================================================= */
+main{flex:1;min-height:0;display:flex}
+.view{flex:1;min-width:0;display:grid;grid-template-columns:minmax(0,1fr) 370px;min-height:0}
+.view[hidden]{display:none!important}
+.view.scroll{display:block;overflow:auto}
+.stage{position:relative;min-height:0;min-width:0;display:grid;place-items:center;overflow:hidden}
+#scene-stage{display:block;background:var(--paper)}
+canvas.gl{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+canvas.gl:active{cursor:grabbing}
+#board{touch-action:none;cursor:pointer;border-radius:14px;box-shadow:0 6px 0 var(--ink)}
+.panel{border-left:2px solid var(--ink);background:var(--surface);overflow:auto;padding:18px 18px 32px;display:flex;flex-direction:column;gap:20px}
+.group h3{font-size:14px;font-weight:780;margin:0 0 10px}
+.group p.note{font-size:13px;color:var(--ink-2);margin:6px 0 0}
+.row{display:flex;gap:8px;align-items:center}
+.row.wrap{flex-wrap:wrap}
+
+/* Botones con canto, como una pieza de plástico */
+.btn{font-weight:700;font-size:14px;padding:8px 13px;border-radius:8px;border:2px solid var(--ink);background:var(--raised);color:var(--ink);box-shadow:0 3px 0 var(--ink);cursor:pointer;transition:transform .07s,box-shadow .07s;white-space:nowrap}
+.btn:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+.btn.primary{background:var(--ink);color:var(--paper)}
+.btn.warn{border-color:var(--red);color:var(--red);box-shadow:0 3px 0 var(--red)}
+.btn[disabled]{opacity:.4;cursor:not-allowed;transform:none}
+.btn.sm{font-size:13px;padding:6px 10px}
+kbd{font:inherit;font-size:11px;font-weight:800;border:1.5px solid currentColor;border-radius:4px;padding:0 4px;margin-left:4px;opacity:.7}
+
+/* =========================================================
+   4. JUEGO
+   ========================================================= */
+.turn{--pc:var(--blue);display:flex;gap:14px;align-items:center;padding:14px 16px;border-radius:12px;background:var(--pc);color:#fff;border:2px solid var(--ink);box-shadow:0 4px 0 var(--ink)}
+.turn.dark-text{color:#000000}
+.turn svg{width:46px;height:46px;flex:none}
+.turn strong{display:block;font-size:22px;font-stretch:118%;font-weight:860;line-height:1.08}
+.turn span{display:block;font-size:13px;opacity:.92;margin-top:3px}
+.over{border:2px solid var(--ink);border-radius:12px;padding:14px;background:var(--raised)}
+.over strong{display:block;font-size:20px;font-stretch:115%;font-weight:850;margin-bottom:4px}
+.over p{margin:0 0 12px;font-size:14px;color:var(--ink-2)}
+.tray{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.tp{aspect-ratio:1;padding:3px;border-radius:8px;border:2px solid var(--line);background:var(--raised);cursor:pointer;display:grid;place-items:center}
+.tp svg{width:100%;height:100%;display:block}
+.tp:hover:not(:disabled){border-color:var(--ink-2)}
+.tp.on{border-color:var(--ink);box-shadow:0 3px 0 var(--ink)}
+.tp:disabled{opacity:.16;cursor:default}
+.score{width:100%;border-collapse:collapse;font-size:14px}
+.score td{padding:7px 4px;border-bottom:1px solid var(--line);vertical-align:middle}
+.score tr.now td{font-weight:780}
+.score .chip{width:14px;height:14px;border-radius:3px;display:inline-block;vertical-align:-2px;margin-right:8px;border:1.5px solid rgba(0,0,0,.25)}
+.score .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.score select{font-size:12px;padding:2px 4px;border-radius:6px;border:1.5px solid var(--line);background:var(--raised)}
+.score .st{font-size:12px;color:var(--ink-2)}
+.check{display:flex;gap:8px;align-items:center;font-size:14px;margin-top:12px;cursor:pointer}
+.check input{accent-color:var(--ink);width:16px;height:16px}
+details.help summary{cursor:pointer;font-weight:750;font-size:14px}
+details.help ol{padding-left:20px;margin:10px 0 0;font-size:14px;color:var(--ink-2)}
+details.help li{margin-bottom:6px}
+
+/* =========================================================
+   5. HOJAS (matriz, catálogo, exportar)
+   ========================================================= */
+.sheet{max-width:1240px;margin:0 auto;padding:30px 24px 70px}
+.sheet h2{font-size:clamp(28px,3.6vw,44px);font-weight:870;font-stretch:122%;line-height:1.02;margin:0 0 12px;max-width:20ch}
+.lead{max-width:64ch;color:var(--ink-2);margin:0 0 26px;font-size:16px}
+.diagrams{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:26px 22px}
+figure.dg{margin:0}
+figure.dg canvas{width:100%;aspect-ratio:1;display:block;border:2px solid var(--ink);border-radius:10px;background:var(--raised)}
+figure.dg figcaption{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin-top:10px;font-size:14px}
+figure.dg figcaption b{grid-row:span 2;display:grid;place-items:center;width:26px;height:26px;border-radius:6px;background:var(--ink);color:var(--paper);font-size:13px}
+figure.dg figcaption strong{font-weight:780}
+figure.dg figcaption span{color:var(--ink-2)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;font-size:12px;color:var(--ink-2)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px;border:1px solid rgba(0,0,0,.2)}
+.rules{margin-top:34px;border:2px solid var(--ink);border-radius:12px;padding:18px 22px;background:var(--raised);max-width:820px}
+.rules h3{margin:0 0 8px;font-size:18px;font-weight:820;font-stretch:112%}
+.rules ul{margin:0;padding-left:20px}
+.rules li{margin-bottom:6px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:22px}
+.status{font-size:14px;color:var(--ink-2)}
+
+.catalog{display:grid;grid-template-columns:110px repeat(4,minmax(0,1fr));gap:10px;align-items:stretch}
+.cat-h{font-size:13px;font-weight:760;align-self:end;padding-bottom:4px}
+.cat-r{font-size:14px;font-weight:780;align-self:center;font-stretch:112%}
+.cat-cell{border:2px solid var(--line);border-radius:10px;background:var(--raised);padding:0;cursor:pointer;overflow:hidden;text-align:left;display:flex;flex-direction:column}
+.cat-cell:hover{border-color:var(--ink)}
+.cat-cell.on{border-color:var(--ink);box-shadow:0 3px 0 var(--ink)}
+.cat-cell canvas{width:100%;aspect-ratio:36/26;display:block;background:var(--paper)}
+.cat-cell span{font-size:12px;padding:5px 8px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+
+.exp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.card{border:2px solid var(--ink);border-radius:12px;background:var(--raised);padding:18px}
+.card h3{margin:0 0 6px;font-size:17px;font-weight:810;font-stretch:110%}
+.card p{margin:0 0 14px;font-size:14px;color:var(--ink-2)}
+.card .row{flex-wrap:wrap}
+textarea.preview{width:100%;min-height:200px;border:2px solid var(--line);border-radius:8px;background:var(--surface);padding:10px;font-size:12px;line-height:1.4;font-variant-numeric:tabular-nums;white-space:pre;overflow:auto;resize:vertical}
+.shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:12px}
+.shots figure{margin:0}
+.shots img{display:block;border:2px solid var(--line);border-radius:8px;background:var(--paper)}
+.shots figcaption{font-size:12px;color:var(--ink-2);margin-top:4px}
+
+/* =========================================================
+   6. EDIFICIO 3D
+   ========================================================= */
+.hud{position:absolute;top:12px;left:12px;right:12px;display:flex;gap:6px;flex-wrap:wrap;pointer-events:none}
+.hud > *{pointer-events:auto}
+.hud .sp{flex:1}
+.rot-group{display:flex;gap:4px}
+.rot-group .btn{min-width:38px}
+#rot-l,#rot-r{font-size:17px;padding:2px 10px;line-height:1}
+.view-label:empty{display:none}
+#rot-auto[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.view-label{align-self:center;font-size:12px;font-weight:700;background:var(--raised);border:1px solid var(--ink);padding:5px 9px}
+.stats{position:absolute;left:12px;bottom:12px;background:var(--raised);border:2px solid var(--ink);border-radius:10px;padding:10px 14px;font-size:13px;display:grid;grid-template-columns:auto auto;gap:2px 16px;font-variant-numeric:tabular-nums;max-width:calc(100% - 24px)}
+.stats dt{color:var(--ink-2)}
+.stats dd{margin:0;text-align:right;font-weight:720}
+.err{position:absolute;inset:auto 12px 12px 12px;background:var(--raised);border:2px solid var(--red);border-radius:10px;padding:12px;font-size:14px}
+.ctl{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;margin-bottom:12px}
+.ctl label{font-size:13px;font-weight:650}
+.ctl output{font-size:12px;color:var(--ink-2);font-variant-numeric:tabular-nums;text-align:right}
+.ctl input[type=range],.ctl select{grid-column:1/-1;width:100%}
+.ctl input[type=range]{accent-color:var(--ink)}
+.ctl select,.role select{padding:6px 8px;border-radius:8px;border:2px solid var(--line);background:var(--raised);font-size:13px}
+.ctl[hidden]{display:none}
+.seg{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px}
+.seg button{font-size:13px;font-weight:700;padding:6px 10px;border-radius:8px;border:2px solid var(--line);background:var(--raised);cursor:pointer}
+.seg button[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:var(--paper)}
+.role{display:grid;grid-template-columns:16px 1fr 64px;gap:8px;align-items:center;margin-bottom:8px}
+.role i{width:16px;height:16px;border-radius:4px;border:1.5px solid rgba(0,0,0,.25)}
+.role input{width:100%;padding:5px 6px;border-radius:8px;border:2px solid var(--line);background:var(--raised);font-size:13px}
+.role-h{display:grid;grid-template-columns:16px 1fr 64px;gap:8px;font-size:11px;color:var(--ink-2);margin-bottom:4px}
+
+.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:10px;font-size:14px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:50;max-width:calc(100% - 32px)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* =========================================================
+   7. MÓVIL Y TABLET
+   ========================================================= */
+@media (max-width:980px){
+  html,body{height:auto}
+  body{display:block}
+  main{display:block}
+  .view{display:block}
+  .panel{border-left:0;border-top:2px solid var(--ink)}
+  #board-stage{height:auto;padding:12px;display:flex;flex-direction:column;align-items:center;gap:12px}
+  #scene-stage{height:62vh;height:62svh;min-height:340px}
+  .diagrams{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .exp-grid{grid-template-columns:1fr}
+  .catalog{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .cat-h{display:none}
+  .cat-r{grid-column:1/-1;margin-top:10px}
+  .steps{margin-left:0;width:100%}
+}
+@media (max-width:560px){
+  .word{font-size:19px}
+  .diagrams{grid-template-columns:1fr}
+  .tag{display:none}
+  .steps a{padding:4px 8px 4px 4px;font-size:13px}
+  .stats{font-size:12px;padding:8px 10px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+/* =========================================================
+   MÓVIL Y TABLETA
+   ========================================================= */
+button,a,select,label,summary{touch-action:manipulation}
+#board{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.touch-bar{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.touch-bar[hidden]{display:none}
+.touch-bar .btn{min-height:44px;padding:10px 16px;font-size:13px}
+#b-stats{display:none}
+@media (max-width:980px){
+  .top{padding:10px 14px;gap:10px}
+  .steps{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;scrollbar-width:none}
+  .steps::-webkit-scrollbar{display:none}
+  .steps a{flex:none}
+  .panel{padding:16px 14px 28px}
+  .tray{grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
+  .tp{min-height:40px}
+  .hud{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;right:12px}
+  .hud::-webkit-scrollbar{display:none}
+  .hud > *{flex:none}
+  .hud .btn{min-height:40px}
+  #b-stats{display:inline-block}
+  .stats{display:none}
+  .stats.show{display:grid}
+  .ctl input[type=range]{height:28px}
+  .sheet{padding:22px 16px 60px}
+  input[type=text],input[type=number],select,textarea{font-size:16px!important}
+}
+@media (min-width:600px) and (max-width:980px){
+  .tray{grid-template-columns:repeat(11,minmax(0,1fr))}
+}
+@media (max-width:560px){
+  .tray{grid-template-columns:repeat(6,minmax(0,1fr))}
+  .row.wrap .btn{flex:1 1 auto}
+  .refs{grid-template-columns:1fr}
+}
+details.info{margin-top:14px;border:1px solid var(--ink);background:var(--raised);padding:0}
+details.info summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:10px 12px;font-size:13px;font-weight:700}
+details.info summary::-webkit-details-marker{display:none}
+details.info .i{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border:1.5px solid var(--ink);border-radius:50%!important;font-size:12px;font-weight:800;font-style:italic;font-family:Georgia,serif;flex:none}
+details.info[open] summary{border-bottom:1px solid var(--line)}
+details.info > *:not(summary){margin:12px}
+details.info ol{padding-left:20px;font-size:14px;line-height:1.5}
+details.info li{margin-bottom:6px}
+details.info p{font-size:14px;line-height:1.5;color:var(--ink)}
+details.info code{font-size:13px;background:var(--board);padding:1px 4px}
+#t-gh{min-height:260px;font-family:ui-monospace,Menlo,Consolas,monospace}
+#parcel-stage{background:var(--paper)}
+#parcel-svg{width:100%;height:100%;display:block}
+.pstats{display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:14px;margin:0;font-variant-numeric:tabular-nums}
+.pstats dt{color:var(--ink-2)}
+.pstats dd{margin:0;text-align:right;font-weight:700}
+@media (max-width:980px){ #parcel-stage{height:62vh;min-height:340px} }
+/* =========================================================
+   8. REFERENCIAS
+   ========================================================= */
+.sort{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2)}
+.sort select{padding:7px 8px;border:1px solid var(--ink);background:var(--raised);font-size:13px}
+.ref-form{display:grid;grid-template-columns:minmax(0,320px) minmax(0,1fr);gap:22px;border:1px solid var(--ink);background:var(--raised);padding:20px;margin-bottom:26px;max-width:900px}
+.ref-form[hidden]{display:none}
+.ref-drop{display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+.ref-drop img{width:100%;aspect-ratio:4/3;object-fit:cover;border:1px solid var(--ink)}
+.ref-fields{display:flex;flex-direction:column;gap:12px}
+.ref-fields label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:650}
+.ref-fields input{padding:9px 10px;border:1px solid var(--ink);background:var(--surface);font-size:15px;font-weight:400}
+.refs{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:26px 20px}
+.ref{margin:0;display:flex;flex-direction:column;border:1px solid var(--ink);background:var(--raised)}
+.ref .ph,.ref img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;border-bottom:1px solid var(--ink)}
+.ref img{cursor:zoom-in;background:var(--board)}
+.ref .ph{background-color:var(--surface);background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:20% 20%}
+.ref figcaption{padding:12px 14px 14px;display:flex;flex-direction:column;gap:3px;flex:1}
+.ref strong{font-size:16px;font-weight:800;line-height:1.2}
+.ref .meta{font-size:13px;color:var(--ink-2)}
+.ref{cursor:pointer;position:relative}
+.cat-gear{font:inherit;font-size:16px;font-weight:800;line-height:1;padding:6px 8px;background:transparent;border:0;color:var(--ink-2);cursor:pointer;letter-spacing:.05em}
+.cat-gear:hover{color:var(--ink)}
+.cat-gear:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+.cat-panel{border:1px solid var(--ink);background:var(--raised);padding:16px;margin:-6px 0 22px;max-width:520px;display:flex;flex-direction:column;gap:10px}
+.cat-panel[hidden]{display:none}
+.cat-head{display:flex;justify-content:space-between;align-items:center}
+#cat-rows{display:flex;flex-direction:column;gap:6px}
+.cat-row,.cat-add{display:flex;gap:8px;align-items:center}
+.cat-row input,.cat-add input{flex:1;padding:7px 9px;border:1px solid var(--ink);background:var(--surface);font-size:14px}
+.ref-edit{position:absolute;top:10px;right:10px;font:inherit;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:6px 10px;background:#FFFFFF;color:#000000;border:1px solid #000000;cursor:pointer}
+.ref-edit:hover{background:#000000;color:#FFFFFF}
+.ref-edit:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+.ref:hover{outline:2px solid var(--ink);outline-offset:-1px}
+.ref:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+.ref .tag{align-self:flex-start;margin-top:8px;font-size:11px;font-weight:700;letter-spacing:.01em;border:1px solid var(--ink);padding:3px 7px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.ref .principle{font-size:13px;margin-top:4px}
+.ref-fields select{padding:9px 10px;border:1px solid var(--ink);background:var(--surface);font-size:15px;font-weight:400}
+.ref-io{margin-top:-10px}
+.lb-acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.lb-acts .btn{background:#fff;color:#000;border-color:#fff}
+.lb-acts .btn.warn{background:transparent;color:#ff6b5e;border-color:#ff6b5e}
+.lb-ph{width:min(600px,80vw);aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;border:1px solid #fff;color:#fff;font-size:15px}
+.lb-ph[hidden]{display:none}
+.lightbox figcaption{max-width:70ch;line-height:1.5}
+.empty{grid-column:1/-1;border:1px dashed var(--ink-2);padding:40px 24px;text-align:center;color:var(--ink-2)}
+.lightbox{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:calc(20px + env(safe-area-inset-top,0px)) 20px calc(20px + env(safe-area-inset-bottom,0px))}
+.lightbox[hidden]{display:none}
+.lightbox figure{margin:0;max-width:min(1200px,100%);display:flex;flex-direction:column;align-items:center;min-height:0}
+.lightbox img{max-width:100%;max-height:78vh;object-fit:contain;display:block}
+.lightbox figcaption{color:#fff;font-size:15px;margin-top:10px;text-align:center}
+@media (max-width:700px){ .ref-form{grid-template-columns:1fr} }
+
+/* =========================================================
+   9. ESTILO ARQUITECTÓNICO
+   Esquinas rectas, líneas finas y sin sombras de app.
+   Borra este bloque si quieres volver al estilo de juego.
+   ========================================================= */
+*,*::before,*::after{border-radius:0!important}
+.btn,.tp.on,#board,.steps a[aria-current="page"],.turn,.cat-cell.on{box-shadow:none!important}
+.btn{border-width:1px;text-transform:uppercase;font-size:12px;letter-spacing:.06em;padding:9px 14px}
+.btn.sm{font-size:11px;padding:6px 10px}
+.btn:hover:not([disabled]){background:var(--ink);color:var(--paper)}
+.btn.primary:hover:not([disabled]){background:var(--paper);color:var(--ink)}
+.btn.warn:hover:not([disabled]){background:var(--red);color:#fff;border-color:var(--red)}
+.btn:active{transform:none}
+a.btn,label.btn{text-decoration:none;display:inline-block}
+.top,.panel,.turn,.steps a,.steps a b,.tp,figure.dg canvas,.over,.rules,.card,.stats,.cat-cell,.err,.score select,.ctl select,.role select,.role input,.seg button,textarea.preview{border-width:1px}
+.top{border-bottom:1px solid var(--ink)}
+.panel{border-left:1px solid var(--ink)}
+.tp.on{outline:2px solid var(--ink);outline-offset:-3px}
+.turn strong{font-stretch:100%;text-transform:uppercase;letter-spacing:-.01em}
+.word{text-transform:uppercase;font-stretch:100%;letter-spacing:-.01em}
+.sheet h2{font-stretch:100%;letter-spacing:-.02em}
+@media (max-width:980px){ .panel{border-left:0;border-top:1px solid var(--ink)} }
+
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a class="brand" href="#jugar" aria-label="Arquitectura es jugar, ir al tablero">
+    <svg class="mark" viewBox="0 0 40 40" aria-hidden="true">
+      <rect x="1" y="1" width="9" height="9" style="fill:var(--blue)"/>
+      <rect x="10.5" y="10.5" width="9" height="9" style="fill:var(--yellow)"/>
+      <rect x="20" y="20" width="9" height="9" style="fill:var(--red)"/>
+      <rect x="29.5" y="29.5" width="9" height="9" style="fill:var(--green)"/>
+    </svg>
+    <span class="word">Arquitectura es jugar</span>
+    <span class="tag">Juego de matrices para proyectar edificios</span>
+  </a>
+  <a class="reflink" href="#referencias" data-v="referencias">Referencias</a>
+  <nav class="steps" aria-label="Pasos del proyecto">
+    <a href="#jugar" data-v="jugar"><b>1</b>Jugar</a>
+    <a href="#matriz" data-v="matriz"><b>2</b>Matriz</a>
+    <a href="#edificio" data-v="edificio"><b>3</b>Edificio</a>
+    <a href="#parcela" data-v="parcela"><b>4</b>Parcela</a>
+    <a href="#catalogo" data-v="catalogo"><b>5</b>Catálogo</a>
+    <a href="#exportar" data-v="exportar"><b>6</b>Exportar</a>
+  </nav>
+</header>
+
+<main>
+<!-- ================= 0. REFERENCIAS ================= -->
+<section class="view scroll" id="v-referencias" hidden>
+  <div class="sheet">
+    <h2>Arquitectura es jugar</h2>
+    <p class="lead">Referencias del proyecto: La Ricarda, Peris+Toral y los mat buildings, arquitecturas que nacen de una trama y de unas reglas. Añade las tuyas con foto, título, año y autores.</p>
+    <div class="toolbar">
+      <button class="btn primary" id="ref-add">Añadir referencia</button>
+      <label class="sort">Ordenar por
+        <select id="ref-sort"><option value="anio">Año</option><option value="titulo">Título</option><option value="reciente">Últimas añadidas</option></select>
+      </label>
+      <label class="sort">Mostrar
+        <select id="ref-filter"><option value="">Todas las categorías</option></select>
+      </label>
+      <button class="cat-gear" id="cat-open" type="button" aria-label="Gestionar categorías" title="Gestionar categorías" hidden>···</button>
+      <span class="status" id="ref-status"></span>
+    </div>
+    <div class="cat-panel" id="cat-panel" hidden>
+      <div class="cat-head"><strong>Categorías</strong><button class="btn sm" type="button" id="cat-close">Cerrar</button></div>
+      <div id="cat-rows"></div>
+      <div class="cat-add"><input type="text" id="cat-new" maxlength="60" placeholder="Nueva categoría"><button class="btn sm primary" type="button" id="cat-add">Añadir</button></div>
+      <div class="row"><button class="btn sm" type="button" id="cat-save">Guardar nombres</button></div>
+    </div>
+    <div class="toolbar ref-io">
+      <button class="btn sm" id="ref-export">Exportar referencias</button>
+      <label class="btn sm" for="ref-import">Importar referencias</label>
+      <input type="file" id="ref-import" accept=".json,application/json" hidden>
+    </div>
+    <form class="ref-form" id="ref-form" hidden>
+      <div class="ref-drop">
+        <img id="ref-preview" alt="" hidden>
+        <label class="btn" for="ref-file">Elegir foto</label>
+        <input type="file" id="ref-file" accept="image/*" hidden>
+        <span class="status" id="ref-file-name">Sin foto</span>
+      </div>
+      <div class="ref-fields">
+        <label>Título<input type="text" id="ref-title" maxlength="120" required placeholder="Casa La Ricarda"></label>
+        <label>Año<input type="text" id="ref-year" maxlength="20" inputmode="numeric" placeholder="1949–1963"></label>
+        <label>Autor o autores<input type="text" id="ref-authors" maxlength="160" placeholder="Antoni Bonet Castellana"></label>
+        <label>Categoría<select id="ref-cat"></select></label>
+        <label>Principio generador<input type="text" id="ref-principle" maxlength="120" placeholder="Retícula ortogonal de 8,80 × 8,80 m"></label>
+        <div class="row">
+          <button class="btn primary" type="submit" id="ref-save">Guardar referencia</button>
+          <button class="btn" type="button" id="ref-cancel">Cancelar</button>
+        </div>
+      </div>
+    </form>
+    <div class="refs" id="refs"></div>
+  </div>
+</section>
+
+<div class="lightbox" id="lightbox" hidden role="dialog" aria-modal="true" aria-label="Referencia ampliada">
+  <figure><img id="lb-img" alt=""><div class="lb-ph" id="lb-ph" hidden>Sin foto</div><figcaption id="lb-cap"></figcaption></figure>
+  <div class="lb-acts"><button class="btn" id="lb-edit">Editar</button><button class="btn warn" id="lb-del">Borrar</button><button class="btn" id="lb-close">Cerrar</button></div>
+</div>
+
+<!-- ================= 1. JUGAR ================= -->
+<section class="view" id="v-jugar">
+  <div class="stage" id="board-stage">
+    <canvas id="board" tabindex="0" aria-label="Tablero de 20 por 20 casillas. Usa las flechas para mover la pieza, Intro para colocarla, R para girar y F para voltear."></canvas>
+    <div class="touch-bar" id="touch-bar" hidden>
+      <button class="btn" type="button" id="tb-rot">Girar</button>
+      <button class="btn" type="button" id="tb-flip">Voltear</button>
+      <button class="btn primary" type="button" id="tb-place">Colocar aquí</button>
+    </div>
+  </div>
+  <aside class="panel">
+    <div class="turn" id="turn">
+      <svg viewBox="0 0 5 5" id="turn-piece" aria-hidden="true"></svg>
+      <div><strong id="turn-name">Turno de Azul</strong><span id="turn-sub"></span></div>
+    </div>
+    <div class="over" id="over" hidden>
+      <strong id="over-title">Partida terminada</strong>
+      <p id="over-text"></p>
+      <div class="row wrap"><a class="btn primary" href="#matriz">Ver la matriz</a><a class="btn" href="#edificio">Generar el edificio</a></div>
+    </div>
+    <div class="group">
+      <h3>Piezas del jugador</h3>
+      <div class="tray" id="tray"></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn" id="b-rot">Girar<kbd>R</kbd></button>
+        <button class="btn" id="b-flip">Voltear<kbd>F</kbd></button>
+      </div>
+    </div>
+    <div class="group">
+      <h3>Jugadores</h3>
+      <table class="score" id="score"></table>
+    </div>
+    <div class="group">
+      <h3>Partida</h3>
+      <div class="row wrap">
+        <button class="btn" id="b-pass">Pasar turno</button>
+        <button class="btn" id="b-undo">Deshacer</button>
+        <button class="btn" id="b-ai">Jugada automática</button>
+        <button class="btn primary" id="b-auto">Completar partida</button>
+        <button class="btn warn" id="b-new">Nueva partida</button>
+      </div>
+      <label class="check"><input type="checkbox" id="c-help" checked> Marcar las esquinas donde puedes jugar</label>
+    </div>
+    <details class="group help">
+      <summary>Reglas del juego</summary>
+      <ol>
+        <li>Cada jugador tiene 21 piezas de 1 a 5 casillas.</li>
+        <li>La primera pieza tiene que ocupar la esquina marcada con tu color.</li>
+        <li>Cada pieza nueva toca otra de tu color solo por una esquina, nunca por un lado.</li>
+        <li>Con otros colores puedes tocarte por donde quieras.</li>
+        <li>Si no puedes colocar más piezas, pasas. La partida acaba cuando nadie puede jugar.</li>
+        <li>Gana quien deja menos casillas sin colocar. Colocar todas suma 15 puntos, y 5 más si la última fue la pieza de una casilla.</li>
+      </ol>
+    </details>
+  </aside>
+</section>
+
+<!-- ================= 2. MATRIZ ================= -->
+<section class="view scroll" id="v-matriz" hidden>
+  <div class="sheet">
+    <h2>De la partida a la matriz</h2>
+    <p class="lead">Cada casilla del tablero se traduce en datos: color, orden de juego, distancia al vacío y altura. Estos seis diagramas explican el método.</p>
+    <div class="toolbar">
+      <label class="check" style="margin:0"><input type="checkbox" id="c-nums" checked> Mostrar números</label>
+      <a class="btn sm" href="#edificio">Cambiar reglas en el edificio</a>
+    </div>
+    <div class="diagrams">
+      <figure class="dg"><canvas data-dg="partida" aria-label="Diagrama de la partida"></canvas><figcaption><b>1</b><strong>Partida</strong><span>La foto del juego: cada color es un jugador.</span></figcaption></figure>
+      <figure class="dg"><canvas data-dg="numeros" aria-label="Matriz numérica"></canvas><figcaption><b>2</b><strong>Matriz</strong><span>0 vacío, 1 azul, 2 amarillo, 3 rojo, 4 verde.</span></figcaption></figure>
+      <figure class="dg"><canvas data-dg="orden" aria-label="Orden de juego"></canvas><figcaption><b>3</b><strong>Orden de juego</strong><span>Turno en que se colocó cada pieza.</span></figcaption></figure>
+      <figure class="dg"><canvas data-dg="vacios" aria-label="Vacíos según su tamaño"></canvas><figcaption><b>4</b><strong>Vacíos</strong><span>Cada hueco según su tamaño. Los más grandes atraen las plantas altas.</span></figcaption></figure>
+      <figure class="dg"><canvas data-dg="alturas" aria-label="Alturas"></canvas><figcaption><b>5</b><strong>Alturas</strong><span>Más altas junto a los vacíos grandes y bajando poco a poco al alejarse.</span></figcaption></figure>
+      <figure class="dg"><canvas data-dg="espacios" aria-label="Espacios resultantes"></canvas><figcaption><b>6</b><strong>Espacios</strong><span>Patios en planta baja, patios en altura y terrazas del retranqueo.</span></figcaption>
+        <div class="legend"><span><i style="background:var(--sand)"></i>Patio en planta baja</span><span><i style="background:var(--leaf)"></i>Patio en altura</span><span><i style="background:var(--wood)"></i>Terraza por retranqueo</span></div>
+      </figure>
+    </div>
+    <div class="rules" id="rules"></div>
+  </div>
+</section>
+
+<!-- ================= 3. EDIFICIO ================= -->
+<section class="view" id="v-edificio" hidden>
+  <div class="stage" id="scene-stage">
+    <div class="hud">
+      <button class="btn sm" data-cam="axo">Axonometría</button>
+      <button class="btn sm" data-cam="planta">Planta</button>
+      <button class="btn sm" data-cam="alzado">Alzado</button>
+      <button class="btn sm" data-cam="persp">Perspectiva</button>
+      <span class="rot-group"><button class="btn sm" id="rot-l" aria-label="Girar 90 grados a la izquierda" title="Girar 90° a la izquierda">↺</button><button class="btn sm" id="rot-r" aria-label="Girar 90 grados a la derecha" title="Girar 90° a la derecha">↻</button><button class="btn sm" id="rot-auto" aria-pressed="false">Girar solo</button></span>
+      <span class="view-label" id="view-label" aria-live="polite"></span>
+      <span class="sp"></span>
+      <button class="btn sm" id="b-stats" aria-pressed="false">Datos</button>
+      <button class="btn sm primary" id="b-shot">Guardar imagen</button>
+    </div>
+    <dl class="stats" id="stats"></dl>
+    <div class="err" id="three-error" hidden>No se ha podido cargar el motor 3D. Comprueba la conexión y recarga la página.</div>
+  </div>
+  <aside class="panel">
+    <div class="group">
+      <h3>Trama</h3>
+      <div class="seg" id="seg-trama">
+        <button data-trama="ortogonal">Ortogonal</button>
+        <button data-trama="tartan">Tartán</button>
+        <button data-trama="tresbolillo">Tresbolillo</button>
+        <button data-trama="hexagonal">Hexagonal</button>
+        <button data-trama="radial">Radial</button>
+      </div>
+      <div class="ctl"><label for="p-module">Módulo</label><output data-o="module"></output><input type="range" id="p-module" data-p="module" min="3" max="12" step="0.5"></div>
+      <div class="ctl" id="ctl-tartan"><label for="p-tartan">Banda estrecha del tartán</label><output data-o="tartan"></output><input type="range" id="p-tartan" data-p="tartan" min="0.2" max="0.9" step="0.05"></div>
+      <div class="ctl" id="ctl-arc"><label for="p-arc">Apertura de la trama radial</label><output data-o="arc"></output><input type="range" id="p-arc" data-p="arc" min="60" max="360" step="5"></div>
+      <div class="ctl" id="ctl-core"><label for="p-radialCore">Radio del centro</label><output data-o="radialCore"></output><input type="range" id="p-radialCore" data-p="radialCore" min="0" max="10" step="0.5"></div>
+    </div>
+    <div class="group">
+      <h3>Alturas y retranqueos</h3>
+      <div class="ctl"><label for="p-rule">Regla de altura</label><span></span>
+        <select id="p-rule" data-p="rule">
+          <option value="vacios">Proporción 2/1 junto a los vacíos</option>
+          <option value="orden">Orden de juego: las primeras piezas, más altas</option>
+          <option value="tamano">Tamaño de pieza: las grandes, más altas</option>
+          <option value="uniforme">Uniforme, sin retranqueo</option>
+        </select></div>
+      <div class="ctl"><label for="p-maxH">Altura máxima</label><output data-o="maxH"></output><input type="range" id="p-maxH" data-p="maxH" min="1" max="14" step="1"></div>
+      <div class="ctl"><label for="p-step">Retranqueo al alejarse del vacío</label><output data-o="step"></output><input type="range" id="p-step" data-p="step" min="1" max="4" step="1"></div>
+      <div class="ctl"><label for="p-ratio">Proporción altura / ancho del vacío</label><output data-o="ratio"></output><input type="range" id="p-ratio" data-p="ratio" min="1" max="3" step="0.5"></div>
+      <div class="ctl"><label for="p-minVoid">Tamaño mínimo para contar como patio</label><output data-o="minVoid"></output><input type="range" id="p-minVoid" data-p="minVoid" min="1" max="12" step="1"></div>
+      <div class="ctl"><label for="p-metric">Cómo se mide la distancia</label><span></span>
+        <select id="p-metric" data-p="metric">
+          <option value="manhattan">Por lados: escalonado en cruz</option>
+          <option value="chebyshev">Por lados y esquinas: escalonado en anillo</option>
+        </select></div>
+      <div class="ctl"><label for="p-fh">Altura de planta</label><output data-o="fh"></output><input type="range" id="p-fh" data-p="fh" min="2.6" max="5" step="0.1"></div>
+      <label class="check"><input type="checkbox" data-p="setback"> Con orden o tamaño, bajar también junto al vacío</label>
+      <label class="check"><input type="checkbox" data-p="edgeVoid"> El borde del tablero cuenta como vacío</label>
+    </div>
+    <div class="group">
+      <h3>Uso de cada color</h3>
+      <div class="role-h"><span></span><span>Comportamiento</span><span>Máx. plantas</span></div>
+      <div id="roles"></div>
+    </div>
+    <div class="group">
+      <h3>Patios en altura</h3>
+      <div class="ctl"><label for="p-patiosAlt">Número de patios</label><output data-o="patiosAlt"></output><input type="range" id="p-patiosAlt" data-p="patiosAlt" min="0" max="16" step="1"></div>
+      <div class="ctl"><label for="p-patioSeed">Reparto</label><output data-o="patioSeed"></output><input type="range" id="p-patioSeed" data-p="patioSeed" min="0" max="20" step="1"></div>
+      <p class="note">Se reparten por todo el edificio, lo más separados posible, y cada uno se abre en una planta distinta. Cambia el reparto para probar otras combinaciones.</p>
+    </div>
+    <div class="group">
+      <h3>Vista</h3>
+      <div class="ctl"><label for="p-colorMode">Color</label><span></span>
+        <select id="p-colorMode" data-p="colorMode">
+          <option value="jugador">Por jugador</option>
+          <option value="maqueta">Maqueta blanca</option>
+          <option value="planta">Por planta</option>
+        </select></div>
+      <div class="ctl"><label for="p-explode">Separar plantas</label><output data-o="explode"></output><input type="range" id="p-explode" data-p="explode" min="0" max="8" step="0.5"></div>
+      <div class="ctl"><label for="p-viewLevel">Plantas visibles</label><output data-o="viewLevel"></output><input type="range" id="p-viewLevel" data-p="viewLevel" min="1" max="14" step="1"></div>
+      <div class="ctl"><label for="p-section">Sección</label><output data-o="section"></output><input type="range" id="p-section" data-p="section" min="0" max="100" step="1"></div>
+      <label class="check"><input type="checkbox" data-p="showGrid"> Dibujar la trama en el suelo</label>
+      <label class="check"><input type="checkbox" data-p="shadows"> Sombras</label>
+      <div class="row" style="margin-top:14px"><button class="btn sm" id="b-reset">Restablecer reglas</button></div>
+    </div>
+  </aside>
+</section>
+
+<!-- ================= 4. PARCELA ================= -->
+<section class="view" id="v-parcela" hidden>
+  <div class="stage" id="parcel-stage"><svg id="parcel-svg" role="img" aria-label="Planta de la parcela con la trama ajustada"></svg></div>
+  <aside class="panel">
+    <div class="group">
+      <h3>Parcela</h3>
+      <label class="check" style="margin-top:0"><input type="checkbox" data-p="parcelaOn"> Ajustar la trama a la parcela</label>
+      <div class="ctl" style="margin-top:14px"><label for="p-parcAncho">Ancho de la parcela</label><output data-o="parcAncho"></output><input type="range" id="p-parcAncho" data-p="parcAncho" min="20" max="400" step="1"></div>
+      <div class="ctl"><label for="p-parcFondo">Fondo de la parcela</label><output data-o="parcFondo"></output><input type="range" id="p-parcFondo" data-p="parcFondo" min="20" max="400" step="1"></div>
+      <div class="ctl"><label for="p-parcRetiro">Retranqueo a linderos</label><output data-o="parcRetiro"></output><input type="range" id="p-parcRetiro" data-p="parcRetiro" min="0" max="20" step="0.5"></div>
+      <div class="ctl"><label for="p-parcModo">Cómo se ajusta la trama</label><span></span>
+        <select id="p-parcModo" data-p="parcModo">
+          <option value="estirar">Estirar el módulo: ocupa toda la parcela</option>
+          <option value="cuadrado">Mantener módulos cuadrados</option>
+        </select></div>
+    </div>
+    <div class="group">
+      <h3>Resultado</h3>
+      <dl class="pstats" id="parcel-stats"></dl>
+    </div>
+    <div class="row"><a class="btn primary" href="#edificio">Ver el edificio en 3D</a></div>
+    <details class="info"><summary><span class="i" aria-hidden="true">i</span>Cómo funciona</summary>
+      <p>El tablero tiene siempre 20 × 20 casillas. Al ajustarlo a una parcela, el módulo deja de ser fijo y pasa a ser el resultado de dividir la parcela, menos el retranqueo a linderos, entre 20.</p>
+      <p><strong>Estirar el módulo</strong> ocupa toda la parcela: si es rectangular, los módulos también lo son. <strong>Mantener módulos cuadrados</strong> usa el lado menor y centra el edificio.</p>
+      <p>La proporción 2/1 se recalcula con el módulo nuevo: en una parcela pequeña los vacíos son más estrechos y el edificio, más bajo.</p>
+    </details>
+  </aside>
+</section>
+
+<!-- ================= 4. CATÁLOGO ================= -->
+<section class="view scroll" id="v-catalogo" hidden>
+  <div class="sheet">
+    <h2>Una partida, veinte edificios</h2>
+    <p class="lead">La misma matriz proyectada sobre cinco tramas y con cuatro reglas de altura. El resto de ajustes son los que tengas en el edificio. Pulsa una variante para abrirla.</p>
+    <div class="toolbar"><button class="btn primary" id="b-cat">Generar catálogo</button><button class="btn" id="b-cat-png">Guardar catálogo como imagen</button><span class="status" id="cat-status"></span></div>
+    <div class="catalog" id="catalog"></div>
+  </div>
+</section>
+
+<!-- ================= 5. EXPORTAR ================= -->
+<section class="view scroll" id="v-exportar" hidden>
+  <div class="sheet">
+    <h2>Llevar la partida a Grasshopper</h2>
+    <p class="lead">El archivo casillas.csv lleva una fila por casilla con su posición, medidas y plantas. Con el script de abajo, Grasshopper lo convierte en volúmenes reales de Rhino para dibujar plantas, secciones y maquetas.</p>
+    <div class="exp-grid">
+      <div class="card">
+        <h3>Datos para Grasshopper</h3>
+        <p>Una fila por casilla con posición en metros, medidas, giro, color, pieza, turno, distancia, plantas y tipo de espacio.</p>
+        <div class="row"><button class="btn primary" data-dl="gh">Descargar casillas.csv</button><button class="btn" id="b-copy">Copiar CSV</button></div>
+        <details class="info"><summary><span class="i" aria-hidden="true">i</span>Cómo llevarlo a Grasshopper, paso a paso</summary>
+          <ol>
+            <li>Pulsa <strong>Descargar casillas.csv</strong> y guárdalo en una carpeta fácil de encontrar.</li>
+            <li>Abre Rhino en un archivo en <strong>metros</strong> y escribe <code>Grasshopper</code>.</li>
+            <li>Doble clic en el lienzo de Grasshopper, escribe <code>Python</code> y añade el componente: en Rhino 8, <strong>Python 3 Script</strong>; en Rhino 7, <strong>GhPython Script</strong>.</li>
+            <li>Haz zoom sobre el componente. Deja <strong>dos entradas</strong> y renómbralas con clic derecho: <code>ruta</code> y <code>por_plantas</code>. Crea <strong>cuatro salidas</strong> con el signo +: <code>volumenes</code>, <code>plantas</code>, <code>tipos</code> y <code>jugadores</code>.</li>
+            <li>Clic derecho en <code>ruta</code> › <strong>Type hint</strong> › <strong>str</strong>. Conecta un componente <strong>File Path</strong> (Params › Primitive) y elige casillas.csv con clic derecho › <em>Select one existing file</em>.</li>
+            <li>A <code>por_plantas</code> conecta un <strong>Boolean Toggle</strong>: <em>False</em> da un volumen por casilla y <em>True</em>, una pieza por planta.</li>
+            <li>Doble clic en el componente, pega el script (botón <strong>Copiar script</strong>) y cierra el editor. El edificio aparece en Rhino.</li>
+            <li>Para colorear por alturas: conecta <code>plantas</code> a un <strong>Gradient</strong> y su resultado, junto con <code>volumenes</code>, a un <strong>Custom Preview</strong>.</li>
+            <li>Para tener la geometría en Rhino: clic derecho en la salida <code>volumenes</code> › <strong>Bake</strong>.</li>
+          </ol>
+          <div class="row"><button class="btn sm primary" id="b-copy-gh">Copiar script</button></div>
+          <textarea class="preview" id="t-gh" readonly spellcheck="false"># Arquitectura es jugar: de casillas.csv a volúmenes en Rhino
+# Entradas: ruta (str) y por_plantas (bool)
+# Salidas: volumenes, plantas, tipos, jugadores
+import io, math
+import Rhino.Geometry as rg
+
+try:
+    por_plantas = bool(por_plantas)
+except NameError:
+    por_plantas = False
+
+volumenes, plantas, tipos, jugadores = [], [], [], []
+with io.open(ruta, encoding=&#x27;utf-8-sig&#x27;) as f:
+    lineas = f.read().splitlines()
+cab = lineas[0].split(&#x27;,&#x27;)
+col = dict((nombre, i) for i, nombre in enumerate(cab))
+
+for linea in lineas[1:]:
+    c = linea.split(&#x27;,&#x27;)
+    if len(c) &lt; len(cab):
+        continue
+    n = int(float(c[col[&#x27;plantas&#x27;]]))
+    if n &lt;= 0:
+        continue
+    x = float(c[col[&#x27;x_m&#x27;]]); y = float(c[col[&#x27;y_m&#x27;]])
+    w = float(c[col[&#x27;ancho_m&#x27;]]); d = float(c[col[&#x27;fondo_m&#x27;]])
+    giro = math.radians(float(c[col[&#x27;giro_grados&#x27;]]))
+    alto = float(c[col[&#x27;altura_m&#x27;]]) / n
+    if &#x27;celda&#x27; in col and c[col[&#x27;celda&#x27;]] == &#x27;hexagono&#x27;:
+        pts = [rg.Point3d(x + w * 0.57735 * math.sin(k * math.pi / 3),
+                          y - d * 0.57735 * math.cos(k * math.pi / 3), 0) for k in range(7)]
+        base = rg.PolylineCurve(pts)
+    else:
+        pl = rg.Plane(rg.Point3d(x, y, 0), rg.Vector3d.ZAxis)
+        pl.Rotate(giro, rg.Vector3d.ZAxis)
+        base = rg.Rectangle3d(pl, rg.Interval(-w / 2, w / 2), rg.Interval(-d / 2, d / 2)).ToNurbsCurve()
+    pisos = range(n) if por_plantas else [0]
+    for k in pisos:
+        h = alto if por_plantas else alto * n
+        crv = base.DuplicateCurve()
+        crv.Translate(rg.Vector3d(0, 0, k * alto))
+        brep = rg.Surface.CreateExtrusion(crv, rg.Vector3d(0, 0, h)).ToBrep().CapPlanarHoles(0.001)
+        volumenes.append(brep)
+        plantas.append(k + 1 if por_plantas else n)
+        tipos.append(c[col[&#x27;tipo&#x27;]])
+        jugadores.append(c[col[&#x27;jugador&#x27;]])
+</textarea>
+        </details>
+      </div>
+      <div class="card">
+        <h3>Matrices</h3>
+        <p>Las tablas de 20 × 20 tal cual: colores, plantas, orden de juego y distancias.</p>
+        <div class="row"><button class="btn" data-dl="m-color">Colores</button><button class="btn" data-dl="m-h">Plantas</button><button class="btn" data-dl="m-turn">Orden</button><button class="btn" data-dl="m-dist">Distancias</button></div>
+      </div>
+      <div class="card">
+        <h3>Imágenes para los paneles</h3>
+        <p>Tablero limpio, los seis diagramas juntos y el edificio con la vista actual, en alta resolución.</p>
+        <div class="row"><button class="btn" data-img="board">Tablero</button><button class="btn" data-img="diagrams">Diagramas</button><button class="btn" data-img="building">Edificio</button></div>
+      </div>
+      <div class="card">
+        <h3>Guardar y cargar la partida</h3>
+        <p>La partida se guarda sola en este navegador. Para pasarla a otra persona, descarga el archivo o pega uno aquí.</p>
+        <div class="row"><button class="btn" data-dl="json">Descargar partida.json</button><label class="btn" for="f-load">Abrir archivo</label><input type="file" id="f-load" accept=".json,application/json" hidden></div>
+        <textarea class="preview" id="t-load" style="min-height:80px;margin-top:12px" placeholder="O pega aquí el contenido de partida.json"></textarea>
+        <div class="row" style="margin-top:8px"><button class="btn sm" id="b-load">Cargar partida pegada</button></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:18px">
+      <h3>Vista previa de casillas.csv</h3>
+      <p>Si la descarga no funciona en tu navegador, selecciona el texto y cópialo en un archivo .csv.</p>
+      <textarea class="preview" id="t-csv" readonly></textarea>
+      <div class="shots" id="shots"></div>
+    </div>
+  </div>
+</section>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<!-- =========================================================
+     CONFIGURACIÓN EDITABLE
+     Aquí cambias el tamaño del tablero, las piezas y los valores
+     por defecto de las reglas sin tocar el resto del código.
+     ========================================================= -->
+<script>
+const CONFIG = {
+  N: 20,                        // casillas por lado del tablero
+  players: [
+    {key:'blue',   name:'Azul'},
+    {key:'yellow', name:'Amarillo'},
+    {key:'red',    name:'Rojo'},
+    {key:'green',  name:'Verde'}
+  ],
+  colors3D: ['#0A3DFF','#FFD500','#F0281C','#00A04A'],  // colores de los volúmenes
+  // Las 21 piezas: coordenadas [columna, fila] de cada casilla
+  pieces: [
+    {n:'I1', c:[[0,0]]},
+    {n:'I2', c:[[0,0],[1,0]]},
+    {n:'I3', c:[[0,0],[1,0],[2,0]]},
+    {n:'V3', c:[[0,0],[1,0],[0,1]]},
+    {n:'I4', c:[[0,0],[1,0],[2,0],[3,0]]},
+    {n:'O4', c:[[0,0],[1,0],[0,1],[1,1]]},
+    {n:'T4', c:[[0,0],[1,0],[2,0],[1,1]]},
+    {n:'L4', c:[[0,0],[0,1],[0,2],[1,2]]},
+    {n:'Z4', c:[[0,0],[1,0],[1,1],[2,1]]},
+    {n:'F5', c:[[1,0],[2,0],[0,1],[1,1],[1,2]]},
+    {n:'I5', c:[[0,0],[1,0],[2,0],[3,0],[4,0]]},
+    {n:'L5', c:[[0,0],[0,1],[0,2],[0,3],[1,3]]},
+    {n:'N5', c:[[0,0],[1,0],[2,0],[2,1],[3,1]]},
+    {n:'P5', c:[[0,0],[1,0],[0,1],[1,1],[0,2]]},
+    {n:'T5', c:[[0,0],[1,0],[2,0],[1,1],[1,2]]},
+    {n:'U5', c:[[0,0],[2,0],[0,1],[1,1],[2,1]]},
+    {n:'V5', c:[[0,0],[0,1],[0,2],[1,2],[2,2]]},
+    {n:'W5', c:[[0,0],[0,1],[1,1],[1,2],[2,2]]},
+    {n:'X5', c:[[1,0],[0,1],[1,1],[2,1],[1,2]]},
+    {n:'Y5', c:[[0,0],[1,0],[2,0],[3,0],[1,1]]},
+    {n:'Z5', c:[[0,0],[1,0],[1,1],[1,2],[2,2]]}
+  ],
+  roleNames: {volumen:'Volumen', plataforma:'Plataforma de una planta', vacio:'Vacío: patio en planta baja'},
+  defaults: {
+    trama:'ortogonal', module:6, tartan:0.4, oblique:27, arc:270, radialCore:3,
+    rule:'vacios', maxH:8, step:1, minVoid:3, ratio:2, metric:'manhattan', fh:3.2, setback:true, edgeVoid:true,
+    roles:['volumen','volumen','volumen','volumen'], colorMax:[14,14,14,14],
+    patiosAlt:6, patioSeed:0,
+    parcelaOn:false, parcAncho:120, parcFondo:96, parcRetiro:3, parcModo:'estirar',
+    colorMode:'jugador', explode:0, viewLevel:14, section:100, showGrid:true, shadows:true
+  }
+};
+</script>
+
+<!-- =========================================================
+     NÚCLEO: reglas del juego y traducción a arquitectura
+     (sin dibujo; se puede probar aparte)
+     ========================================================= -->
+<script>
+const N = CONFIG.N;
+const PLAYERS = CONFIG.players;
+const PIECES = CONFIG.pieces;
+const START = [[0,0],[N-1,0],[N-1,N-1],[0,N-1]];
+const D4 = [[1,0],[-1,0],[0,1],[0,-1]];
+const D8 = D4.concat([[1,1],[-1,1],[1,-1],[-1,-1]]);
+const TOTAL_CELLS = PIECES.reduce((s,p)=>s+p.c.length,0);
+
+function grid(v){ return Array.from({length:N},()=>Array(N).fill(v)); }
+function inb(x,y){ return x>=0 && y>=0 && x<N && y<N; }
+function normCells(cells){
+  const mx=Math.min(...cells.map(c=>c[0])), my=Math.min(...cells.map(c=>c[1]));
+  return cells.map(([x,y])=>[x-mx,y-my]).sort((a,b)=>a[1]-b[1]||a[0]-b[0]);
+}
+function transformCells(cells,rot,flip){
+  let c=cells.map(a=>a.slice());
+  if(flip) c=c.map(([x,y])=>[-x,y]);
+  for(let i=0;i<rot;i++) c=c.map(([x,y])=>[-y,x]);
+  return normCells(c);
+}
+const ORIENTS = PIECES.map(p=>{
+  const seen=new Set(), out=[];
+  for(const f of [false,true]) for(let r=0;r<4;r++){
+    const c=transformCells(p.c,r,f), k=c.map(a=>a.join(',')).join(';');
+    if(!seen.has(k)){ seen.add(k); out.push(c); }
+  }
+  return out;
+});
+
+function newState(){
+  return {board:grid(0), piece:grid(0), placements:[], used:[[],[],[],[]], passed:[false,false,false,false], current:0, over:false};
+}
+function isValidAt(S,p,o,ox,oy){
+  const v=p+1, B=S.board, first=S.used[p].length===0;
+  let corner=false;
+  for(let i=0;i<o.length;i++){
+    const x=o[i][0]+ox, y=o[i][1]+oy;
+    if(x<0||y<0||x>=N||y>=N) return false;
+    if(B[y][x]) return false;
+    if((x>0&&B[y][x-1]===v)||(x<N-1&&B[y][x+1]===v)||(y>0&&B[y-1][x]===v)||(y<N-1&&B[y+1][x]===v)) return false;
+    if(!corner){
+      if(first){ if(x===START[p][0]&&y===START[p][1]) corner=true; }
+      else if((x>0&&y>0&&B[y-1][x-1]===v)||(x<N-1&&y>0&&B[y-1][x+1]===v)||(x>0&&y<N-1&&B[y+1][x-1]===v)||(x<N-1&&y<N-1&&B[y+1][x+1]===v)) corner=true;
+    }
+  }
+  return corner;
+}
+function isValid(S,p,cells){ return isValidAt(S,p,cells,0,0); }
+function whyInvalid(S,p,cells){
+  const v=p+1;
+  for(const [x,y] of cells){ if(!inb(x,y)) return 'La pieza se sale del tablero.'; if(S.board[y][x]) return 'La pieza pisa otra pieza.'; }
+  for(const [x,y] of cells) for(const [dx,dy] of D4){ const nx=x+dx, ny=y+dy; if(inb(nx,ny)&&S.board[ny][nx]===v) return 'No puede tocar por un lado otra pieza de tu color.'; }
+  if(S.used[p].length===0) return 'La primera pieza tiene que ocupar tu esquina.';
+  return 'Tiene que tocar una pieza de tu color por una esquina.';
+}
+function allMoves(S,p,limit){
+  limit=limit||Infinity; const moves=[];
+  for(let pi=0;pi<PIECES.length;pi++){
+    if(S.used[p].includes(pi)) continue;
+    for(const o of ORIENTS[pi]){
+      let w=0,h=0; for(const c of o){ if(c[0]>w)w=c[0]; if(c[1]>h)h=c[1]; }
+      for(let oy=0;oy<N-h;oy++) for(let ox=0;ox<N-w;ox++){
+        if(isValidAt(S,p,o,ox,oy)){
+          moves.push({pi,cells:o.map(([x,y])=>[x+ox,y+oy])});
+          if(moves.length>=limit) return moves;
+        }
+      }
+    }
+  }
+  return moves;
+}
+function placePiece(S,p,pi,cells){
+  const idx=S.placements.length+1;
+  S.placements.push({p,pi,cells:cells.map(a=>a.slice())});
+  for(const [x,y] of cells){ S.board[y][x]=p+1; S.piece[y][x]=idx; }
+  S.used[p].push(pi);
+}
+function advanceTurn(S){
+  const skipped=[];
+  for(let k=1;k<=4;k++){
+    const np=(S.current+k)%4;
+    if(S.passed[np]) continue;
+    if(!allMoves(S,np,1).length){ S.passed[np]=true; skipped.push(np); continue; }
+    S.current=np; return skipped;
+  }
+  S.over=true; return skipped;
+}
+function undoLast(S){
+  const last=S.placements.pop(); if(!last) return null;
+  for(const [x,y] of last.cells){ S.board[y][x]=0; S.piece[y][x]=0; }
+  const u=S.used[last.p]; u.splice(u.lastIndexOf(last.pi),1);
+  S.passed=[false,false,false,false]; S.over=false; S.current=last.p;
+  return last;
+}
+function aiMove(S,p,rand){
+  rand=rand||Math.random;
+  const moves=allMoves(S,p); if(!moves.length) return null;
+  const c=(N-1)/2; let best=null, bs=-Infinity;
+  for(const m of moves){
+    let d=0; for(const [x,y] of m.cells) d+=Math.hypot(x-c,y-c);
+    d/=m.cells.length;
+    const s=m.cells.length*10 - d*0.9 + rand()*7;
+    if(s>bs){ bs=s; best=m; }
+  }
+  return best;
+}
+function scores(S){
+  return [0,1,2,3].map(p=>{
+    const placed=S.used[p].reduce((s,pi)=>s+PIECES[pi].c.length,0);
+    let score=-(TOTAL_CELLS-placed);
+    if(S.used[p].length===PIECES.length){
+      score=15;
+      const mine=S.placements.filter(pl=>pl.p===p);
+      if(mine.length && PIECES[mine[mine.length-1].pi].c.length===1) score+=5;
+    }
+    return {placed, left:TOTAL_CELLS-placed, pieces:PIECES.length-S.used[p].length, score};
+  });
+}
+function rebuildState(g){
+  const S=newState();
+  for(const pl of g.placements){
+    const p=pl.p|0, pi=pl.pi|0;
+    if(p<0||p>3||pi<0||pi>=PIECES.length||!Array.isArray(pl.cells)) throw new Error('Pieza no válida');
+    const cells=pl.cells.map(c=>[c[0]|0,c[1]|0]);
+    if(!isValid(S,p,cells)) throw new Error('Jugada no válida');
+    placePiece(S,p,pi,cells);
+  }
+  if(Array.isArray(g.passed)&&g.passed.length===4) S.passed=g.passed.map(Boolean);
+  S.current=Math.abs(g.current|0)%4; S.over=!!g.over;
+  return S;
+}
+
+/* ---- Traducción de la partida a datos arquitectónicos ---- */
+function computeModel(S,P){
+  const B=S.board, PI=S.piece, T=S.placements.length;
+  const nb=P.metric==='chebyshev'?D8:D4;
+  // 1. vacío exterior (conectado con el borde) frente a patios cerrados
+  const outside=grid(false), q=[];
+  for(let i=0;i<N;i++) for(const [x,y] of [[i,0],[i,N-1],[0,i],[N-1,i]])
+    if(!B[y][x]&&!outside[y][x]){ outside[y][x]=true; q.push([x,y]); }
+  while(q.length){
+    const [x,y]=q.pop();
+    for(const [dx,dy] of D4){ const nx=x+dx, ny=y+dy; if(inb(nx,ny)&&!B[ny][nx]&&!outside[ny][nx]){ outside[ny][nx]=true; q.push([nx,ny]); } }
+  }
+  // 2. vacíos: grupos de casillas vacías y su tamaño
+  const voidId=grid(0), voidSize=grid(0), voidLabel=grid(false), voids=[];
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+    if(B[y][x]||voidId[y][x]) continue;
+    const id=voids.length+1, comp=[[x,y]], st=[[x,y]]; voidId[y][x]=id; voidLabel[y][x]=true;
+    while(st.length){ const [cx,cy]=st.pop();
+      for(const [dx,dy] of D4){ const nx=cx+dx, ny=cy+dy; if(inb(nx,ny)&&!B[ny][nx]&&!voidId[ny][nx]){ voidId[ny][nx]=id; st.push([nx,ny]); comp.push([nx,ny]); } } }
+    for(const [cx,cy] of comp) voidSize[cy][cx]=comp.length;
+    voids.push({id,size:comp.length,open:comp.some(([cx,cy])=>outside[cy][cx])});
+  }
+  const big=v=>v>=P.minVoid;
+  const sMax=voids.reduce((m,v)=>big(v.size)&&v.size>m?v.size:m,0);
+  const patios=voids.filter(v=>!v.open&&big(v.size)).length;
+  // 3. distancia a los vacíos (para las reglas de orden y tamaño)
+  const M=N+2, dd=Array.from({length:M},()=>Array(M).fill(Infinity)), qq=[];
+  for(let y=0;y<M;y++) for(let x=0;x<M;x++){
+    const bx=x-1, by=y-1, src=inb(bx,by) ? (!B[by][bx] && big(voidSize[by][bx])) : P.edgeVoid;
+    if(src){ dd[y][x]=0; qq.push([x,y]); }
+  }
+  for(let k=0;k<qq.length;k++){
+    const [x,y]=qq[k];
+    for(const [dx,dy] of nb){ const nx=x+dx, ny=y+dy; if(nx<0||ny<0||nx>=M||ny>=M||dd[ny][nx]!==Infinity) continue; dd[ny][nx]=dd[y][x]+1; qq.push([nx,ny]); }
+  }
+  const dist=grid(0); let maxDist=0;
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++) if(B[y][x]){ const d=dd[y+1][x+1]; dist[y][x]=isFinite(d)?d:N; if(dist[y][x]>maxDist) maxDist=dist[y][x]; }
+  // 4. proporción altura/ancho: cada fachada que da a un vacío sube como máximo
+  //    P.ratio veces el ancho libre que tiene delante (2 = proporción 2/1).
+  //    Junto a los vacíos anchos el edificio es más alto y denso; junto a los
+  //    estrechos, más bajo. Hacia el interior la altura baja P.step plantas por casilla.
+  const cap=grid(Infinity), width=grid(0), pull=grid(0);
+  const [MX,MZ]=modXZ(P);
+  const floorsFor=(run,ax)=>run===Infinity?P.maxH:Math.max(1,Math.floor(P.ratio*run*(ax?MX:MZ)/P.fh));
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+    if(!B[y][x]) continue;
+    let wmin=Infinity, fmin=Infinity, facade=false;
+    for(const [dx,dy] of D4){
+      const nx=x+dx, ny=y+dy;
+      if(!inb(nx,ny)){ if(P.edgeVoid) facade=true; continue; }
+      if(B[ny][nx]) continue;
+      facade=true; let run=0, cx=nx, cy=ny;
+      while(inb(cx,cy)&&!B[cy][cx]){ run++; cx+=dx; cy+=dy; }
+      if(!inb(cx,cy)&&P.edgeVoid) run=Infinity;
+      if(run<wmin) wmin=run;
+      const fl=floorsFor(run,dx!==0); if(fl<fmin) fmin=fl;
+    }
+    if(facade){ width[y][x]=wmin; cap[y][x]=Math.min(P.maxH,fmin); pull[y][x]=cap[y][x]; }
+  }
+  { let changed=true;
+    while(changed){ changed=false;
+      for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+        if(!B[y][x]) continue;
+        for(const [dx,dy] of nb){ const nx=x+dx, ny=y+dy;
+          if(inb(nx,ny)&&B[ny][nx]){ const c=Math.min(cap[y][x],pull[ny][nx]-P.step); if(c>pull[y][x]){ pull[y][x]=c; changed=true; } } }
+      }
+    }
+  }
+  // 5. alturas
+  const h=grid(0);
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+    if(!B[y][x]) continue;
+    const p=B[y][x]-1, idx=PI[y][x], size=S.placements[idx-1].cells.length, role=P.roles[p];
+    let base=P.maxH;
+    if(P.rule==='vacios') base=Math.max(1,pull[y][x]);
+    if(P.rule!=='uniforme') base=Math.min(base,cap[y][x]);
+    else if(P.rule==='orden') base = T>1 ? Math.round(1+(P.maxH-1)*(1-(idx-1)/(T-1))) : P.maxH;
+    else if(P.rule==='tamano') base = Math.round(1+(P.maxH-1)*(size-1)/4);
+    if((P.rule==='orden'||P.rule==='tamano') && P.setback) base=Math.min(base, dist[y][x]*P.step);
+    base=Math.min(base, P.colorMax[p]);
+    if(role==='plataforma') base=Math.min(base,1);
+    h[y][x]= role==='vacio' ? 0 : Math.max(1,base);
+  }
+  // 6. patios en altura: piezas repartidas por todo el tablero, cada una vaciada en una planta distinta
+  const carved=grid(false), elevated=[];
+  if(P.patiosAlt>0){
+    const cands=[];
+    for(let idx=1;idx<=T;idx++){
+      const pl=S.placements[idx-1], role=P.roles[pl.p];
+      if(role==='vacio'||role==='plataforma') continue;
+      let hp=Infinity, edges=0, closed=0, cx=0, cy=0;
+      for(const [x,y] of pl.cells){
+        hp=Math.min(hp,h[y][x]); cx+=x; cy+=y;
+        for(const [dx,dy] of D4){ const nx=x+dx, ny=y+dy; if(inb(nx,ny)&&PI[ny][nx]===idx) continue; edges++; if(inb(nx,ny)&&B[ny][nx]&&h[ny][nx]>=2) closed++; }
+      }
+      if(hp<3||closed/edges<0.5) continue;
+      cands.push({idx,hp,cx:cx/pl.cells.length,cy:cy/pl.cells.length,cells:pl.cells});
+    }
+    if(cands.length){
+      const seed=Math.abs(P.patioSeed|0);
+      const tall=[...cands].sort((a,b)=>b.hp-a.hp), first=tall[(seed*7)%Math.min(tall.length,Math.max(1,Math.ceil(tall.length/3)))], chosen=[first], rest=cands.filter(c=>c!==first);
+      while(chosen.length<P.patiosAlt&&rest.length){
+        let bi=0, bd=-1;
+        rest.forEach((c,i)=>{ let md=Infinity; for(const k of chosen) md=Math.min(md,Math.hypot(c.cx-k.cx,c.cy-k.cy)); const sc=md+1.5*c.hp; if(sc>bd){ bd=sc; bi=i; } });
+        chosen.push(rest.splice(bi,1)[0]);
+      }
+      chosen.forEach((c,k)=>{
+        const f=((k+1+seed*0.37)*0.6180339887)%1, target=1+Math.round(f*Math.max(0,P.maxH-2)), L=Math.max(1,Math.min(c.hp-1,target));
+        for(const [x,y] of c.cells){ h[y][x]=L; carved[y][x]=true; }
+        elevated.push({idx:c.idx,level:L});
+      });
+    }
+  }
+  // 7. tipo de espacio
+  const type=grid('exterior'); let terr=0, pElev=0;
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+    const v=B[y][x];
+    if(!v){ type[y][x]= outside[y][x] ? 'exterior' : 'patio'; continue; }
+    if(h[y][x]===0){ type[y][x]='patio'; continue; }
+    if(carved[y][x]){ type[y][x]='patioElevado'; pElev++; continue; }
+    let taller=false;
+    for(const [dx,dy] of D4){ const nx=x+dx, ny=y+dy; if(inb(nx,ny)&&h[ny][nx]>h[y][x]) taller=true; }
+    if(taller){ type[y][x]='terraza'; terr++; } else type[y][x]='cubierta';
+  }
+  return {h,dist,type,outside,carved,voidSize,voidLabel,sMax,pull,cap,width,patios,elevated,terr,pElev,maxDist};
+}
+
+/* ---- Geometría de cada trama: centro, medidas, giro y cizalla de cada casilla ---- */
+// Módulo en X y en Z: el de la trama, o el que resulta de ajustar el tablero a la parcela
+function modXZ(P){
+  if(P.parcelaOn){
+    const ax=Math.max(N,P.parcAncho-2*P.parcRetiro), az=Math.max(N,P.parcFondo-2*P.parcRetiro);
+    if(P.parcModo==='estirar') return [ax/N, az/N];
+    const m=Math.min(ax,az)/N; return [m,m];
+  }
+  return [P.module,P.module];
+}
+function tramaLayout(P){
+  const [mx0,mz0]=modXZ(P), fit=!!P.parcelaOn;
+  switch(P.trama){
+    case 'tartan':{
+      const r=P.tartan, k=fit?2/(1+r):1, wx=[], wz=[], ox=[0], oz=[0];
+      for(let i=0;i<N;i++){ wx.push((i%2?r:1)*mx0*k); wz.push((i%2?r:1)*mz0*k); ox.push(ox[i]+wx[i]); oz.push(oz[i]+wz[i]); }
+      const tx=ox[N]/2, tz=oz[N]/2;
+      return (x,y)=>({cx:ox[x]+wx[x]/2-tx, cz:oz[y]+wz[y]/2-tz, w:wx[x], d:wz[y], rot:0, shear:0});
+    }
+    case 'tresbolillo':{
+      const mx=fit?mx0*N/(N+0.5):mx0, tw=N*mx+mx/2, td=N*mz0;
+      return (x,y)=>({cx:(x+0.5)*mx+(y%2)*mx/2-tw/2, cz:(y+0.5)*mz0-td/2, w:mx, d:mz0, rot:0, shear:0});
+    }
+    case 'hexagonal':{
+      // hexágonos con lados planos a izquierda y derecha; filas alternas desplazadas medio módulo
+      const mx=fit?mx0*N/(N+0.5):mx0, rs=fit?mz0:mz0*Math.sqrt(3)/2, d=rs*2/Math.sqrt(3), tw=N*mx+mx/2, td=N*rs;
+      return (x,y)=>({cx:(x+0.5)*mx+(y%2)*mx/2-tw/2, cz:(y+0.5)*rs-td/2, w:mx, d, rot:0, shear:0, hex:true});
+    }
+    case 'radial':{
+      const m=fit?Math.max(1,Math.min(P.parcAncho,P.parcFondo)-2*P.parcRetiro)/2/(N+P.radialCore):mx0;
+      const arc=P.arc*Math.PI/180, R0=m*P.radialCore;
+      return (x,y)=>{ const r=R0+(y+0.5)*m, th=-arc/2+(x+0.5)/N*arc;
+        return {cx:r*Math.sin(th), cz:-r*Math.cos(th), w:Math.max(0.2,r*arc/N), d:m, rot:-th, shear:0}; };
+    }
+    default:
+      return (x,y)=>({cx:(x+0.5)*mx0-N*mx0/2, cz:(y+0.5)*mz0-N*mz0/2, w:mx0, d:mz0, rot:0, shear:0});
+  }
+}
+</script>
+
+<!-- =========================================================
+     INTERFAZ: tablero, diagramas, 3D, catálogo y exportación
+     ========================================================= -->
+<script>
+(function(){
+'use strict';
+const $=(s,r)=>(r||document).querySelector(s), $$=(s,r)=>[...(r||document).querySelectorAll(s)];
+const rootEl=document.documentElement;
+const css=n=>getComputedStyle(rootEl).getPropertyValue(n).trim();
+const pcol=()=>PLAYERS.map(p=>css('--'+p.key));
+const clone=o=>JSON.parse(JSON.stringify(o));
+const fmtNum=n=>Math.round(n).toLocaleString('es-ES');
+
+/* ---------- avisos ---------- */
+const toastEl=$('#toast'); let toastT;
+function toast(msg){ toastEl.textContent=msg; toastEl.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>toastEl.classList.remove('show'),2800); }
+
+/* ---------- memoria del navegador ---------- */
+const store={
+  get(k){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):null; }catch(e){ return null; } },
+  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+};
+
+/* ---------- estado ---------- */
+let S=newState();
+let P=clone(CONFIG.defaults);
+let control=['human','human','human','human'];
+let sel={pi:null,rot:0,flip:false};
+let hover=null, showHelp=true, showNums=true;
+let botTimer=null, autoAll=false;
+let MODEL=null;
+const getModel=()=>MODEL||(MODEL=computeModel(S,P));
+
+(function load(){
+  const g=store.get('trama-partida');
+  if(g&&Array.isArray(g.placements)){
+    try{ S=rebuildState(g); if(Array.isArray(g.control)) control=g.control.map(c=>c==='bot'?'bot':'human'); }
+    catch(e){ S=newState(); }
+  }
+  const p=store.get('trama-params');
+  if(p&&typeof p==='object') for(const k in CONFIG.defaults) if(k in p && typeof p[k]===typeof CONFIG.defaults[k]) P[k]=p[k];
+  sanitizeParams();
+})();
+function sanitizeParams(){
+  if(!['vacios','orden','tamano','uniforme'].includes(P.rule)) P.rule=CONFIG.defaults.rule;
+  if(!['ortogonal','tartan','tresbolillo','hexagonal','radial'].includes(P.trama)) P.trama='ortogonal';
+  if(!['estirar','cuadrado'].includes(P.parcModo)) P.parcModo='estirar';
+  if(!Array.isArray(P.roles)||P.roles.length!==4) P.roles=clone(CONFIG.defaults.roles);
+  P.roles=P.roles.map(r=>CONFIG.roleNames[r]?r:'volumen');
+}
+function saveGame(){ store.set('trama-partida',{placements:S.placements,current:S.current,passed:S.passed,over:S.over,control}); }
+function saveParams(){ store.set('trama-params',P); }
+
+/* ---------- utilidades de color y dibujo ---------- */
+function rgb(h){ h=h.replace('#',''); if(h.length===3) h=h.split('').map(c=>c+c).join(''); const n=parseInt(h,16); return [n>>16&255,n>>8&255,n&255]; }
+function mix(a,b,t){ const A=rgb(a),B=rgb(b); return '#'+A.map((v,i)=>Math.round(v+(B[i]-v)*t).toString(16).padStart(2,'0')).join(''); }
+function lum(h){ const [r,g,b]=rgb(h); return (0.299*r+0.587*g+0.114*b)/255; }
+function rr(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+function pieceSVG(cells,color){
+  let w=0,h=0; for(const [x,y] of cells){ if(x>w)w=x; if(y>h)h=y; }
+  const ox=(5-(w+1))/2, oy=(5-(h+1))/2;
+  return cells.map(([x,y])=>`<rect x="${x+ox+0.06}" y="${y+oy+0.06}" width="0.88" height="0.88" style="fill:${color};stroke:rgba(0,0,0,.25);stroke-width:.05"/>`).join('');
+}
+
+/* =========================================================
+   1. JUEGO
+   ========================================================= */
+const board=$('#board'), bctx=board.getContext('2d');
+let bsize=400;
+
+function resizeBoard(){
+  const st=$('#board-stage'); if(!st.offsetParent && st.getClientRects().length===0) return;
+  const r=st.getBoundingClientRect();
+  const narrow=window.matchMedia('(max-width:980px)').matches;
+  const vh=(window.visualViewport&&window.visualViewport.height)||window.innerHeight;
+  const size=narrow ? Math.max(220,Math.floor(Math.min(r.width-24, vh*(window.innerWidth>=600?0.52:0.62)))) : Math.max(220,Math.floor(Math.min(r.width,r.height)-36));
+  const dpr=window.devicePixelRatio||1;
+  bsize=size; board.style.width=size+'px'; board.style.height=size+'px';
+  board.width=Math.round(size*dpr); board.height=Math.round(size*dpr);
+  bctx.setTransform(dpr,0,0,dpr,0,0);
+  drawBoard();
+}
+function boardGeo(size){ const pad=Math.round(size*0.03); return {pad, cs:(size-2*pad)/N}; }
+
+function drawTile(ctx,X,Y,cs,c,alpha){
+  const g=Math.max(1,cs*0.05), w=cs-2*g, b=Math.max(1,cs*0.09), i=cs*0.27;
+  ctx.save(); if(alpha!=null) ctx.globalAlpha=alpha;
+  ctx.fillStyle=c; ctx.fillRect(X+g,Y+g,w,w);
+  ctx.fillStyle='rgba(255,255,255,.30)'; ctx.fillRect(X+g,Y+g,w,b); ctx.fillRect(X+g,Y+g,b,w);
+  ctx.fillStyle='rgba(0,0,0,.20)'; ctx.fillRect(X+g,Y+cs-g-b,w,b); ctx.fillRect(X+cs-g-b,Y+g,b,w);
+  ctx.fillStyle='rgba(255,255,255,.16)'; ctx.fillRect(X+i,Y+i,cs-2*i,cs-2*i);
+  ctx.strokeStyle='rgba(0,0,0,.14)'; ctx.lineWidth=Math.max(1,cs*0.03); ctx.strokeRect(X+i,Y+i,cs-2*i,cs-2*i);
+  ctx.restore();
+}
+function canStartAt(p,x,y){
+  if(S.board[y][x]) return false; const v=p+1;
+  for(const [dx,dy] of D4){ const nx=x+dx, ny=y+dy; if(inb(nx,ny)&&S.board[ny][nx]===v) return false; }
+  if(S.used[p].length===0) return x===START[p][0]&&y===START[p][1];
+  for(const [dx,dy] of [[1,1],[-1,1],[1,-1],[-1,-1]]){ const nx=x+dx, ny=y+dy; if(inb(nx,ny)&&S.board[ny][nx]===v) return true; }
+  return false;
+}
+function currentCells(){ return sel.pi==null?null:transformCells(PIECES[sel.pi].c,sel.rot,sel.flip); }
+function ghostCells(){
+  const c=currentCells(); if(!c||!hover) return null;
+  let w=0,h=0; for(const [x,y] of c){ if(x>w)w=x; if(y>h)h=y; }
+  return c.map(([x,y])=>[x+hover[0]-Math.floor(w/2), y+hover[1]-Math.floor(h/2)]);
+}
+
+function drawBoardTo(ctx,size,o){
+  o=o||{};
+  const col=pcol(), {pad,cs}=boardGeo(size);
+  ctx.clearRect(0,0,size,size);
+  ctx.fillStyle=css('--board'); ctx.fillRect(0,0,size,size);
+  const cell=css('--cell'), lo=css('--cell-lo'), g=Math.max(1,cs*0.06), sh=Math.max(1,cs*0.07);
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+    if(S.board[y][x]) continue;
+    const X=pad+x*cs, Y=pad+y*cs;
+    ctx.fillStyle=lo; ctx.fillRect(X+g,Y+g,cs-2*g,cs-2*g);
+    ctx.fillStyle=cell; ctx.fillRect(X+g,Y+g+sh,cs-2*g,cs-2*g-sh);
+  }
+  START.forEach(([x,y],p)=>{
+    if(S.board[y][x]) return;
+    const X=pad+x*cs, Y=pad+y*cs, i=cs*0.2;
+    ctx.strokeStyle=col[p]; ctx.lineWidth=Math.max(2,cs*0.11); ctx.strokeRect(X+i,Y+i,cs-2*i,cs-2*i);
+  });
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){ const v=S.board[y][x]; if(v) drawTile(ctx,pad+x*cs,pad+y*cs,cs,col[v-1]); }
+  // puentes entre casillas de una misma pieza
+  const gg=Math.max(1,cs*0.05), b=Math.max(1,cs*0.09);
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+    const v=S.board[y][x]; if(!v) continue;
+    const idx=S.piece[y][x], X=pad+x*cs, Y=pad+y*cs;
+    if(x<N-1&&S.piece[y][x+1]===idx){
+      const bx=X+cs-gg-b, bw=2*(gg+b);
+      ctx.fillStyle=col[v-1]; ctx.fillRect(bx,Y+gg,bw,cs-2*gg);
+      ctx.fillStyle='rgba(255,255,255,.30)'; ctx.fillRect(bx,Y+gg,bw,b);
+      ctx.fillStyle='rgba(0,0,0,.20)'; ctx.fillRect(bx,Y+cs-gg-b,bw,b);
+    }
+    if(y<N-1&&S.piece[y+1][x]===idx){
+      const by=Y+cs-gg-b, bh=2*(gg+b);
+      ctx.fillStyle=col[v-1]; ctx.fillRect(X+gg,by,cs-2*gg,bh);
+      ctx.fillStyle='rgba(255,255,255,.30)'; ctx.fillRect(X+gg,by,b,bh);
+      ctx.fillStyle='rgba(0,0,0,.20)'; ctx.fillRect(X+cs-gg-b,by,b,bh);
+    }
+    if(x<N-1&&y<N-1&&S.piece[y][x+1]===idx&&S.piece[y+1][x]===idx&&S.piece[y+1][x+1]===idx){
+      ctx.fillStyle=col[v-1]; ctx.fillRect(X+cs-gg-b,Y+cs-gg-b,2*(gg+b),2*(gg+b));
+    }
+  }
+  if(o.help && !S.over && control[S.current]==='human'){
+    ctx.fillStyle=col[S.current];
+    for(let y=0;y<N;y++) for(let x=0;x<N;x++) if(canStartAt(S.current,x,y)){
+      ctx.beginPath(); ctx.arc(pad+(x+0.5)*cs,pad+(y+0.5)*cs,Math.max(2,cs*0.12),0,Math.PI*2); ctx.fill();
+    }
+  }
+  if(o.last && S.placements.length){
+    const last=S.placements[S.placements.length-1];
+    ctx.strokeStyle=css('--ink'); ctx.lineWidth=Math.max(1.5,cs*0.07);
+    for(const [x,y] of last.cells){
+      for(const [dx,dy] of D4){
+        const nx=x+dx, ny=y+dy;
+        if(inb(nx,ny)&&S.piece[ny][nx]===S.piece[y][x]) continue;
+        const X=pad+x*cs, Y=pad+y*cs; ctx.beginPath();
+        if(dx===1){ ctx.moveTo(X+cs,Y); ctx.lineTo(X+cs,Y+cs); }
+        if(dx===-1){ ctx.moveTo(X,Y); ctx.lineTo(X,Y+cs); }
+        if(dy===1){ ctx.moveTo(X,Y+cs); ctx.lineTo(X+cs,Y+cs); }
+        if(dy===-1){ ctx.moveTo(X,Y); ctx.lineTo(X+cs,Y); }
+        ctx.stroke();
+      }
+    }
+  }
+  if(o.ghost){
+    const gc=ghostCells();
+    if(gc){
+      const ok=isValid(S,S.current,gc);
+      for(const [x,y] of gc){
+        if(!inb(x,y)) continue;
+        const X=pad+x*cs, Y=pad+y*cs;
+        if(ok) drawTile(ctx,X,Y,cs,col[S.current],0.72);
+        else { ctx.save(); ctx.fillStyle='rgba(16,32,68,.18)'; ctx.fillRect(X+2,Y+2,cs-4,cs-4); ctx.strokeStyle=css('--red'); ctx.setLineDash([4,3]); ctx.lineWidth=2; ctx.strokeRect(X+2,Y+2,cs-4,cs-4); ctx.restore(); }
+      }
+    }
+  }
+}
+function drawBoard(){ drawBoardTo(bctx,bsize,{ghost:true,help:showHelp,last:true}); }
+
+function renderGame(){
+  const col=pcol(), p=S.current, sc=scores(S);
+  const turn=$('#turn');
+  turn.style.setProperty('--pc',`var(--${PLAYERS[p].key})`);
+  turn.classList.toggle('dark-text', lum(col[p])>0.6);
+  const shown=currentCells()||PIECES[0].c;
+  $('#turn-piece').innerHTML=pieceSVG(shown, lum(col[p])>0.6?'#000000':'#ffffff');
+  if(S.over){
+    $('#turn-name').textContent='Partida terminada';
+    $('#turn-sub').textContent='Pasa a la matriz para traducirla.';
+  } else {
+    $('#turn-name').textContent='Turno de '+PLAYERS[p].name;
+    $('#turn-sub').textContent= control[p]==='bot' ? 'Juega automáticamente.' :
+      (sel.pi==null ? (S.used[p].length? 'Elige una pieza y apóyala en una esquina tuya.' : 'Elige una pieza y cubre tu esquina.') : `Pieza de ${PIECES[sel.pi].c.length} casillas. ${window.matchMedia('(pointer: coarse)').matches?'Toca o arrastra en el tablero y pulsa Colocar.':'Haz clic en el tablero.'}`);
+  }
+  // fichas
+  const tray=$('#tray'); tray.innerHTML='';
+  PIECES.forEach((pc,i)=>{
+    const used=S.used[p].includes(i);
+    const b=document.createElement('button');
+    b.className='tp'+(sel.pi===i?' on':''); b.type='button';
+    b.disabled=used||S.over||control[p]==='bot';
+    b.setAttribute('aria-label',`Pieza ${pc.n}, ${pc.c.length} casillas`+(used?', ya colocada':''));
+    b.innerHTML=`<svg viewBox="0 0 5 5" aria-hidden="true">${pieceSVG(sel.pi===i?currentCells():pc.c,col[p])}</svg>`;
+    b.addEventListener('click',()=>{ if(sel.pi===i){ sel.rot=(sel.rot+1)%4; } else sel={pi:i,rot:0,flip:false};
+      if(isTouch&&!hover){ hover=S.used[p].length?[Math.floor(N/2),Math.floor(N/2)]:[...START[p]]; }
+      renderGame(); drawBoard(); if(!isTouch) board.focus({preventScroll:true});
+      else if(window.matchMedia('(max-width:980px)').matches) $('#board-stage').scrollIntoView({behavior:'smooth',block:'start'}); });
+    tray.appendChild(b);
+  });
+  // marcador
+  const t=$('#score'); t.innerHTML='';
+  PLAYERS.forEach((pl,i)=>{
+    const tr=document.createElement('tr'); if(i===p&&!S.over) tr.className='now';
+    const st=S.over?'' : (S.passed[i]?'sin jugadas': (i===p?'juega':'' ));
+    tr.innerHTML=`<td><span class="chip" style="background:${col[i]}"></span>${pl.name} <span class="st">${st}</span></td>
+      <td class="num">${sc[i].placed} cas.</td><td class="num">${sc[i].score} pt</td>
+      <td class="num"><select aria-label="Quién juega con ${pl.name}"><option value="human">Persona</option><option value="bot">Automático</option></select></td>`;
+    const s=$('select',tr); s.value=control[i];
+    s.addEventListener('change',()=>{ control[i]=s.value; saveGame(); renderGame(); drawBoard(); scheduleBot(); });
+    t.appendChild(tr);
+  });
+  // fin de partida
+  const over=$('#over'); over.hidden=!S.over;
+  if(S.over){
+    const best=Math.max(...sc.map(s=>s.score)), win=sc.map((s,i)=>s.score===best?PLAYERS[i].name:null).filter(Boolean);
+    $('#over-title').textContent= win.length>1 ? 'Empate: '+win.join(' y ') : 'Gana '+win[0];
+    const placed=sc.reduce((a,s)=>a+s.placed,0);
+    $('#over-text').textContent=`${S.placements.length} piezas y ${placed} casillas ocupadas de ${N*N}. Esta partida es la base del edificio.`;
+  }
+  const human=!S.over&&control[p]==='human'&&!autoAll;
+  $('#b-rot').disabled=$('#b-flip').disabled=!(human&&sel.pi!=null);
+  $('#b-pass').disabled=!human;
+  $('#b-ai').disabled=!human;
+  $('#b-undo').disabled=!S.placements.length||autoAll;
+  $('#b-auto').disabled=S.over;
+  $('#b-auto').textContent=autoAll?'Detener':'Completar partida';
+  if(autoAll) $('#b-auto').disabled=false;
+}
+
+function commit(p,pi,cells){
+  placePiece(S,p,pi,cells);
+  sel={pi:null,rot:0,flip:false};
+  const skipped=advanceTurn(S);
+  if(!autoAll) skipped.forEach(sp=>toast(`${PLAYERS[sp].name} ya no puede colocar más piezas`));
+  if(S.over) toast('Partida terminada');
+  afterChange();
+}
+function afterChange(){ MODEL=null; saveGame(); renderGame(); drawBoard(); scheduleBot(); }
+function tryPlace(){
+  if(S.over||sel.pi==null||!hover||control[S.current]!=='human'||autoAll) return;
+  const cells=ghostCells();
+  if(!isValid(S,S.current,cells)){ toast(whyInvalid(S,S.current,cells)); return; }
+  commit(S.current,sel.pi,cells);
+}
+function scheduleBot(){
+  clearTimeout(botTimer);
+  if(S.over){ if(autoAll){ autoAll=false; renderGame(); } return; }
+  if(control[S.current]==='bot'||autoAll){
+    botTimer=setTimeout(()=>{
+      const p=S.current, m=aiMove(S,p);
+      if(m) commit(p,m.pi,m.cells);
+      else { S.passed[p]=true; advanceTurn(S); afterChange(); }
+    }, autoAll?40:420);
+  }
+}
+
+function cellFromEvent(e){
+  const r=board.getBoundingClientRect(), {pad,cs}=boardGeo(r.width);
+  const x=Math.floor((e.clientX-r.left-pad)/cs), y=Math.floor((e.clientY-r.top-pad)/cs);
+  return [Math.max(0,Math.min(N-1,x)),Math.max(0,Math.min(N-1,y))];
+}
+board.addEventListener('pointermove',e=>{ if(e.pointerType==='mouse'){ const c=cellFromEvent(e); if(!hover||c[0]!==hover[0]||c[1]!==hover[1]){ hover=c; drawBoard(); } } });
+board.addEventListener('pointerleave',e=>{ if(e.pointerType==='mouse'){ hover=null; drawBoard(); } });
+// En pantallas táctiles: tocar o arrastrar mueve la pieza, y la barra de abajo la gira o la coloca
+let isTouch=window.matchMedia('(pointer: coarse)').matches, dragging=false;
+function showTouchBar(){ const tb=$('#touch-bar'); if(tb&&tb.hidden){ tb.hidden=false; resizeBoard(); } }
+if(isTouch) showTouchBar();
+board.addEventListener('pointerdown',e=>{
+  const c=cellFromEvent(e);
+  if(e.pointerType==='mouse'){ hover=c; tryPlace(); return; }
+  isTouch=true; showTouchBar(); dragging=true;
+  try{ board.setPointerCapture(e.pointerId); }catch(_){}
+  hover=c; drawBoard();
+});
+board.addEventListener('pointermove',e=>{
+  if(e.pointerType==='mouse'||!dragging) return;
+  const c=cellFromEvent(e); if(!hover||c[0]!==hover[0]||c[1]!==hover[1]){ hover=c; drawBoard(); }
+});
+const endDrag=()=>{ dragging=false; };
+board.addEventListener('pointerup',endDrag); board.addEventListener('pointercancel',endDrag);
+$('#tb-rot').addEventListener('click',()=>{ if(sel.pi==null){ toast('Elige primero una pieza'); return; } sel.rot=(sel.rot+1)%4; renderGame(); drawBoard(); });
+$('#tb-flip').addEventListener('click',()=>{ if(sel.pi==null){ toast('Elige primero una pieza'); return; } sel.flip=!sel.flip; renderGame(); drawBoard(); });
+$('#tb-place').addEventListener('click',()=>{ if(sel.pi==null){ toast('Elige primero una pieza'); return; } if(!hover){ toast('Toca el tablero para situar la pieza'); return; } tryPlace(); });
+board.addEventListener('keydown',e=>{
+  const mv={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[e.key];
+  if(mv){ e.preventDefault(); if(!hover) hover=[...START[S.current]]; hover=[Math.max(0,Math.min(N-1,hover[0]+mv[0])),Math.max(0,Math.min(N-1,hover[1]+mv[1]))]; drawBoard(); }
+  else if(e.key==='Enter'||e.key===' '){ e.preventDefault(); tryPlace(); }
+});
+document.addEventListener('keydown',e=>{
+  if(currentView!=='jugar') return;
+  const tag=(e.target.tagName||'').toLowerCase(); if(tag==='input'||tag==='select'||tag==='textarea') return;
+  const k=e.key.toLowerCase();
+  if(k==='r'&&sel.pi!=null){ sel.rot=(sel.rot+1)%4; renderGame(); drawBoard(); }
+  else if(k==='f'&&sel.pi!=null){ sel.flip=!sel.flip; renderGame(); drawBoard(); }
+  else if(k==='escape'){ sel={pi:null,rot:0,flip:false}; renderGame(); drawBoard(); }
+  else if(k==='z'&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); $('#b-undo').click(); }
+});
+$('#b-rot').addEventListener('click',()=>{ sel.rot=(sel.rot+1)%4; renderGame(); drawBoard(); });
+$('#b-flip').addEventListener('click',()=>{ sel.flip=!sel.flip; renderGame(); drawBoard(); });
+$('#b-pass').addEventListener('click',()=>{ const p=S.current; S.passed[p]=true; sel={pi:null,rot:0,flip:false}; advanceTurn(S); toast(`${PLAYERS[p].name} pasa`); afterChange(); });
+$('#b-undo').addEventListener('click',()=>{
+  clearTimeout(botTimer);
+  let last=undoLast(S);
+  while(last && control[last.p]==='bot' && S.placements.length && control.includes('human')) last=undoLast(S);
+  if(last){ S.current=last.p; if(control[S.current]==='bot'&&control.includes('human')){ /* vuelve a la persona */ } toast('Jugada deshecha'); }
+  sel={pi:null,rot:0,flip:false}; MODEL=null; saveGame(); renderGame(); drawBoard();
+});
+$('#b-ai').addEventListener('click',()=>{ const p=S.current, m=aiMove(S,p); if(m) commit(p,m.pi,m.cells); else { S.passed[p]=true; advanceTurn(S); afterChange(); } });
+$('#b-auto').addEventListener('click',()=>{ autoAll=!autoAll; renderGame(); if(autoAll) scheduleBot(); else clearTimeout(botTimer); });
+let newArm=null;
+$('#b-new').addEventListener('click',()=>{
+  const b=$('#b-new');
+  if(!newArm){ b.textContent='Pulsa otra vez para borrar'; newArm=setTimeout(()=>{ newArm=null; b.textContent='Nueva partida'; },3000); return; }
+  clearTimeout(newArm); newArm=null; b.textContent='Nueva partida';
+  clearTimeout(botTimer); autoAll=false; S=newState(); sel={pi:null,rot:0,flip:false}; hover=null; afterChange(); toast('Nueva partida');
+});
+$('#c-help').addEventListener('change',e=>{ showHelp=e.target.checked; drawBoard(); });
+
+/* =========================================================
+   2. DIAGRAMAS DE LA MATRIZ
+   ========================================================= */
+function drawDiagram(ctx,size,kind){
+  const M=getModel(), col=pcol(), pad=size*0.025, cs=(size-2*pad)/N, g=Math.max(0.5,cs*0.04);
+  const T=Math.max(1,S.placements.length), lo=css('--ramp-lo'), hi=css('--ramp-hi'), cell=css('--cell'), ink=css('--ink'), ink2=css('--ink-2');
+  ctx.fillStyle=css('--raised'); ctx.fillRect(0,0,size,size);
+  ctx.font=`650 ${Math.max(6,cs*0.44)}px Archivo, Arial, sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+  const typeCol={exterior:css('--raised'),patio:css('--sand'),terraza:css('--wood'),patioElevado:css('--leaf')};
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+    const v=S.board[y][x], X=pad+x*cs, Y=pad+y*cs; let fill=cell, text='', tc=ink;
+    if(kind==='partida'){ fill=v?col[v-1]:cell; }
+    else if(kind==='numeros'){ fill=v?mix(col[v-1],css('--raised'),0.75):cell; text=String(v); tc=v?mix(col[v-1],'#000000',0.25):ink2; }
+    else if(kind==='orden'){ if(v){ const t=S.piece[y][x]/T; fill=mix(lo,hi,0.15+t*0.85); text=String(S.piece[y][x]); tc=t>0.45?lo:hi; } }
+    else if(kind==='vacios'){ if(!v){ const sz=M.voidSize[y][x], isBig=sz>=P.minVoid&&M.sMax>0; if(isBig){ const t=sz/M.sMax; fill=mix(mix(css('--raised'),css('--sand'),0.45+0.55*t),'#7A5A2A',0.5*t); if(M.voidLabel[y][x]){ text=String(sz); tc=t>0.6?'#FFFFFF':'#000000'; } } else fill=css('--raised'); } }
+    else if(kind==='alturas'){ const hh=M.h[y][x]; if(hh>0){ const t=hh/Math.max(1,P.maxH); fill=mix(lo,hi,t); text=String(hh); tc=t>0.5?lo:hi; } else if(!v&&M.voidSize[y][x]>=P.minVoid) fill=mix(css('--raised'),css('--sand'),0.6); else if(!v) fill=css('--raised'); }
+    else if(kind==='espacios'){ const ty=M.type[y][x]; if(typeCol[ty]) fill=typeCol[ty]; else { const t=M.h[y][x]/Math.max(1,P.maxH); fill=mix(css('--cell'),css('--ink-2'),t*0.7); } if(M.h[y][x]>0) { text=String(M.h[y][x]); tc=ink; } }
+    ctx.fillStyle=fill; ctx.fillRect(X+g,Y+g,cs-2*g,cs-2*g);
+    if(showNums&&text!==''&&cs>=11){ ctx.fillStyle=tc; ctx.fillText(text,X+cs/2,Y+cs/2+0.5); }
+  }
+  // contorno de las piezas
+  ctx.strokeStyle=ink; ctx.lineWidth=Math.max(1,cs*0.06); ctx.beginPath();
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+    const id=S.piece[y][x]; if(!id) continue; const X=pad+x*cs, Y=pad+y*cs;
+    if(x===N-1||S.piece[y][x+1]!==id){ ctx.moveTo(X+cs,Y); ctx.lineTo(X+cs,Y+cs); }
+    if(x===0||S.piece[y][x-1]!==id){ ctx.moveTo(X,Y); ctx.lineTo(X,Y+cs); }
+    if(y===N-1||S.piece[y+1][x]!==id){ ctx.moveTo(X,Y+cs); ctx.lineTo(X+cs,Y+cs); }
+    if(y===0||S.piece[y-1][x]!==id){ ctx.moveTo(X,Y); ctx.lineTo(X+cs,Y); }
+  }
+  ctx.stroke();
+}
+function drawDiagrams(){
+  $$('canvas[data-dg]').forEach(cv=>{
+    const size=cv.clientWidth; if(!size) return;
+    const dpr=window.devicePixelRatio||1; cv.width=Math.round(size*dpr); cv.height=Math.round(size*dpr);
+    const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); drawDiagram(ctx,size,cv.dataset.dg);
+  });
+  renderRules();
+}
+function renderRules(){
+  const M=getModel(), ruleTxt={vacios:`cada fachada sube como máximo ${String(P.ratio).replace('.',',')} veces el ancho del vacío que tiene delante: junto a los vacíos anchos el edificio es más alto y denso, y junto a los estrechos, más bajo`,orden:'las piezas colocadas antes son más altas, sin superar la proporción con el vacío',tamano:'las piezas de más casillas son más altas, sin superar la proporción con el vacío',uniforme:'todas las casillas tienen la altura máxima, sin retranqueo'}[P.rule];
+  const tramaTxt={ortogonal:'ortogonal',tartan:'tartán, con bandas anchas y estrechas alternas',tresbolillo:'al tresbolillo, con filas desplazadas medio módulo',hexagonal:'hexagonal, como el módulo del Pabellón de Bruselas de Corrales y Molezún',radial:`radial de ${P.arc}°`}[P.trama];
+  const roles=PLAYERS.map((pl,i)=>`<li><b>${pl.name}</b>: ${CONFIG.roleNames[P.roles[i]].toLowerCase()}${P.colorMax[i]<P.maxH?`, hasta ${P.colorMax[i]} plantas`:''}.</li>`).join('');
+  const lv=[...new Set(M.elevated.map(e=>e.level))].sort((a,b)=>a-b);
+  $('#rules').innerHTML=`<h3>Reglas activas</h3><ul>
+    <li><b>Trama</b>: ${tramaTxt}, módulo de ${P.module} m.</li>
+    <li><b>Altura</b>: ${ruleTxt}, con un máximo de ${P.maxH} plantas de ${P.fh.toLocaleString('es-ES')} m.</li>
+    ${P.rule!=='uniforme'?`<li><b>Proporción ${String(P.ratio).replace('.',',')}/1</b>: frente a un vacío de 1 casilla (${P.module} m) caben ${Math.min(P.maxH,Math.max(1,Math.floor(P.ratio*P.module/P.fh)))} plantas; frente a uno de 2 casillas, ${Math.min(P.maxH,Math.max(1,Math.floor(P.ratio*2*P.module/P.fh)))}; frente a uno de 3, ${Math.min(P.maxH,Math.max(1,Math.floor(P.ratio*3*P.module/P.fh)))}.</li>`:''}
+    ${P.rule==='vacios'?`<li><b>Retranqueo</b>: ${P.step} ${P.step>1?'plantas menos':'planta menos'} por cada casilla que se aleja del vacío.</li>`:''}
+    ${roles}
+    ${M.elevated.length?`<li><b>Patios en altura</b>: ${M.elevated.length}, repartidos por el tablero y abiertos en ${lv.length>1?'las plantas '+lv.slice(0,-1).join(', ')+' y '+lv[lv.length-1]:'la planta '+lv[0]}.</li>`:''}
+  </ul>`;
+}
+$('#c-nums').addEventListener('change',e=>{ showNums=e.target.checked; drawDiagrams(); });
+
+/* =========================================================
+   3. EDIFICIO 3D
+   ========================================================= */
+let T3=null;
+const ORBIT_PRESETS={axo:{theta:Math.PI/4,phi:0.96},planta:{theta:0,phi:0.0005},alzado:{theta:0,phi:Math.PI/2-0.0005},persp:{theta:Math.PI/5,phi:1.08}};
+function ensure3D(){
+  if(T3) return T3;
+  if(typeof THREE==='undefined'){ $('#three-error').hidden=false; return null; }
+  const stage=$('#scene-stage');
+  let renderer;
+  try{ renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true}); }
+  catch(e){ $('#three-error').hidden=false; $('#three-error').textContent='Este navegador no permite gráficos 3D (WebGL).'; return null; }
+  renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+  renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  renderer.localClippingEnabled=true;
+  renderer.domElement.className='gl';
+  renderer.domElement.setAttribute('aria-label','Vista 3D del edificio. Arrastra para girar, rueda para acercar, clic derecho o Mayúsculas para desplazar.');
+  stage.insertBefore(renderer.domElement,stage.firstChild);
+  const scene=new THREE.Scene(), root=new THREE.Group(); scene.add(root);
+  const hemi=new THREE.HemisphereLight(0xffffff,0x95a2b8,0.62); scene.add(hemi);
+  const sun=new THREE.DirectionalLight(0xffffff,0.8); sun.castShadow=true; sun.shadow.mapSize.set(isTouch?1024:2048,isTouch?1024:2048); sun.shadow.bias=-0.0005; sun.shadow.normalBias=0.02;
+  scene.add(sun); scene.add(sun.target);
+  const ortho=new THREE.OrthographicCamera(-1,1,1,-1,0.1,10000), persp=new THREE.PerspectiveCamera(32,1,0.5,10000);
+  T3={renderer,scene,root,sun,ortho,persp,cam:ortho,orbit:{theta:ORBIT_PRESETS.axo.theta,phi:ORBIT_PRESETS.axo.phi,zoom:1,target:new THREE.Vector3()},fitR:60,pending:false,framed:false,bounds:null};
+  bindOrbit(renderer.domElement);
+  if('ResizeObserver' in window) new ResizeObserver(()=>resize3D()).observe(stage);
+  resize3D();
+  return T3;
+}
+function resize3D(){
+  if(!T3) return; const st=$('#scene-stage'); const w=st.clientWidth, h=st.clientHeight; if(!w||!h) return;
+  T3.renderer.setSize(w,h,false); updateCamera();
+}
+function updateCamera(aspect){
+  const o=T3.orbit, R=T3.fitR, st=$('#scene-stage');
+  const a=aspect||((st.clientWidth||1)/(st.clientHeight||1));
+  const dir=new THREE.Vector3(Math.sin(o.phi)*Math.sin(o.theta),Math.cos(o.phi),Math.sin(o.phi)*Math.cos(o.theta));
+  if(T3.cam===T3.ortho){
+    const hh=R*1.05/o.zoom, c=T3.ortho;
+    c.left=-hh*a; c.right=hh*a; c.top=hh; c.bottom=-hh; c.near=0.1; c.far=R*20;
+    c.position.copy(o.target).addScaledVector(dir,R*6); c.lookAt(o.target); c.updateProjectionMatrix();
+  } else {
+    const c=T3.persp, d=R/Math.sin(THREE.MathUtils.degToRad(c.fov/2))*0.95/o.zoom;
+    c.aspect=a; c.near=Math.max(0.1,d/200); c.far=d*30;
+    c.position.copy(o.target).addScaledVector(dir,d); c.lookAt(o.target); c.updateProjectionMatrix();
+  }
+  updateViewLabel();
+  requestRender();
+}
+function requestRender(){ if(!T3||T3.pending) return; T3.pending=true; requestAnimationFrame(()=>{ T3.pending=false; T3.renderer.render(T3.scene,T3.cam); }); }
+function setCam(kind){
+  if(!T3) return; const pr=ORBIT_PRESETS[kind]; if(!pr) return;
+  stopSpin();
+  T3.cam= kind==='persp' ? T3.persp : T3.ortho;
+  // conserva el lado desde el que se mira: el alzado se ajusta a la fachada más cercana y la axonometría a la esquina más cercana
+  const q=Math.PI/2, th=T3.orbit.theta;
+  if(kind==='alzado') T3.orbit.theta=Math.round(th/q)*q;
+  else if(kind==='axo'||kind==='persp') T3.orbit.theta=Math.round((th-q/2)/q)*q+q/2;
+  T3.orbit.phi=pr.phi; T3.orbit.zoom=1;
+  if(T3.bounds) T3.orbit.target.copy(T3.bounds.center);
+  updateCamera();
+}
+let spinOn=false, tweenId=0;
+function stopSpin(){ if(!spinOn) return; spinOn=false; const b=$('#rot-auto'); if(b) b.setAttribute('aria-pressed','false'); }
+function rotateView(dir){
+  if(!T3) return; stopSpin();
+  const id=++tweenId, from=T3.orbit.theta, to=from+dir*Math.PI/2, t0=performance.now(), dur=420;
+  const step=now=>{ if(id!==tweenId) return; const k=Math.min(1,(now-t0)/dur), e=k<0.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+    T3.orbit.theta=from+(to-from)*e; updateCamera(); if(k<1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
+function spinLoop(){ if(!spinOn||!T3) return; T3.orbit.theta+=0.006; updateCamera(); requestAnimationFrame(spinLoop); }
+function updateViewLabel(){
+  const el=$('#view-label'); if(!el||!T3) return;
+  if(T3.orbit.phi<0.05){ el.textContent='Vista en planta'; return; }
+  const s=Math.cos(T3.orbit.theta), e=Math.sin(T3.orbit.theta), t=0.38;
+  const ns=s>t?'sur':s<-t?'norte':'', ew=e>t?'este':e<-t?'oeste':'';
+  const name=ns&&ew?(ns==='sur'?(ew==='este'?'sureste':'suroeste'):(ew==='este'?'noreste':'noroeste')):(ns||ew);
+  el.textContent='Vista desde el '+name;
+}
+function bindOrbit(el){
+  const ptrs=new Map(); let last=null, pinch=null;
+  el.addEventListener('contextmenu',e=>e.preventDefault());
+  el.addEventListener('pointerdown',e=>{ stopSpin(); tweenId++; el.setPointerCapture(e.pointerId); ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY}); last={x:e.clientX,y:e.clientY,pan:e.button===2||e.shiftKey}; if(ptrs.size===2){ const [a,b]=[...ptrs.values()]; pinch={d:Math.hypot(a.x-b.x,a.y-b.y),mx:(a.x+b.x)/2,my:(a.y+b.y)/2}; } });
+  el.addEventListener('pointermove',e=>{
+    if(!ptrs.has(e.pointerId)) return; ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(ptrs.size===2&&pinch){ const [a,b]=[...ptrs.values()]; const d=Math.hypot(a.x-b.x,a.y-b.y), mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+      T3.orbit.zoom=Math.max(0.2,Math.min(12,T3.orbit.zoom*d/Math.max(1,pinch.d))); pan(mx-pinch.mx,my-pinch.my); pinch={d,mx,my}; updateCamera(); return; }
+    if(!last) return; const dx=e.clientX-last.x, dy=e.clientY-last.y; last.x=e.clientX; last.y=e.clientY;
+    if(last.pan) pan(dx,dy);
+    else { T3.orbit.theta-=dx*0.008; T3.orbit.phi=Math.max(0.0005,Math.min(Math.PI/2-0.0005,T3.orbit.phi-dy*0.008)); }
+    updateCamera();
+  });
+  const end=e=>{ ptrs.delete(e.pointerId); if(ptrs.size<2) pinch=null; if(!ptrs.size) last=null; };
+  el.addEventListener('pointerup',end); el.addEventListener('pointercancel',end);
+  el.addEventListener('wheel',e=>{ e.preventDefault(); T3.orbit.zoom=Math.max(0.2,Math.min(12,T3.orbit.zoom*Math.exp(-e.deltaY*0.0015))); updateCamera(); },{passive:false});
+}
+function pan(dx,dy){
+  const c=T3.cam, h=$('#scene-stage').clientHeight||1;
+  let wpp; if(c===T3.ortho) wpp=(c.top-c.bottom)/h; else wpp=2*c.position.distanceTo(T3.orbit.target)*Math.tan(THREE.MathUtils.degToRad(c.fov/2))/h;
+  const right=new THREE.Vector3().setFromMatrixColumn(c.matrixWorld,0), up=new THREE.Vector3().setFromMatrixColumn(c.matrixWorld,1);
+  T3.orbit.target.addScaledVector(right,-dx*wpp).addScaledVector(up,dy*wpp);
+}
+
+function disposeRoot(){
+  const r=T3.root;
+  while(r.children.length){ const o=r.children.pop(); if(o.geometry) o.geometry.dispose(); if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.dispose()); } if(o.dispose) o.dispose(); }
+}
+function buildScene(M,Q,opts){
+  opts=opts||{};
+  disposeRoot();
+  const root=T3.root, L=tramaLayout(Q), fh=Q.fh, e=Q.explode, step=fh+e, gap=0.94, slab=0.9;
+  const vis=Math.min(Q.viewLevel>=Q.maxH?99:Q.viewLevel,99);
+  const unitGeo=()=>Q.trama==='hexagonal'?new THREE.CylinderGeometry(0.57735,0.57735,1,6):new THREE.BoxGeometry(1,1,1);
+  const P3=CONFIG.colors3D;
+  const tmp=new THREE.Matrix4(), Rm=new THREE.Matrix4(), Sh=new THREE.Matrix4(), Sc=new THREE.Matrix4(), col=new THREE.Color();
+  const mtx=(g,y,sx,sy,sz)=>{ tmp.makeTranslation(g.cx,y,g.cz); Rm.makeRotationY(g.rot); tmp.multiply(Rm); if(g.shear){ Sh.set(1,0,g.shear,0, 0,1,0,0, 0,0,1,0, 0,0,0,1); tmp.multiply(Sh); } Sc.makeScale(sx,sy,sz); tmp.multiply(Sc); return tmp; };
+  // límites
+  let x0=Infinity,x1=-Infinity,z0=Infinity,z1=-Infinity, area=0, built=0, maxF=0;
+  const geo=[]; for(let y=0;y<N;y++){ geo.push([]); for(let x=0;x<N;x++){ const g=L(x,y); geo[y].push(g); const r=Math.max(g.w,g.d)*0.75+Math.abs(g.shear)*g.d/2; x0=Math.min(x0,g.cx-r); x1=Math.max(x1,g.cx+r); z0=Math.min(z0,g.cz-r); z1=Math.max(z1,g.cz+r);
+    const hh=M.h[y][x]; if(hh>0){ area+=g.w*g.d; built+=g.w*g.d*hh; if(hh>maxF) maxF=hh; } } }
+  const H=Math.max(1,maxF)*step;
+  const center=new THREE.Vector3((x0+x1)/2,H*0.35,(z0+z1)/2);
+  const R=Math.max(10,Math.hypot(x1-x0,z1-z0,H)/2);
+  T3.bounds={center,x0,x1,z0,z1,H}; T3.fitR=R;
+  if(opts.frame||!T3.framed){ T3.orbit.target.copy(center); T3.framed=true; }
+
+  const clip=[];
+  if(Q.section<100){ const cut=x0+(x1-x0)*Q.section/100; clip.push(new THREE.Plane(new THREE.Vector3(-1,0,0),cut)); }
+  const side=clip.length?THREE.DoubleSide:THREE.FrontSide;
+  T3.renderer.shadowMap.enabled=!!Q.shadows;
+
+  // suelo
+  const groundCol=new THREE.Color(css('--board'));
+  const ground=new THREE.Mesh(new THREE.PlaneGeometry(R*8,R*8),new THREE.MeshStandardMaterial({color:groundCol,roughness:1,metalness:0}));
+  ground.rotation.x=-Math.PI/2; ground.position.set(center.x,-0.01,center.z); ground.receiveShadow=true; root.add(ground);
+  T3.scene.background=new THREE.Color(css('--paper'));
+
+  // volúmenes
+  let count=0; for(let y=0;y<N;y++) for(let x=0;x<N;x++) count+=Math.min(M.h[y][x],vis);
+  if(count>0){
+    const mat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:0.6,metalness:0,side,clippingPlanes:clip,clipShadows:true});
+    const mesh=new THREE.InstancedMesh(unitGeo(),mat,count);
+    mesh.castShadow=true; mesh.receiveShadow=true;
+    let i=0; const lo='#E6E6E2', hi='#1E1E1E';
+    for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+      const hh=Math.min(M.h[y][x],vis); if(!hh) continue; const g=geo[y][x], p=S.board[y][x]-1;
+      for(let l=0;l<hh;l++){
+        mesh.setMatrixAt(i,mtx(g,l*step+fh*slab/2,g.w*gap,fh*slab,g.d*gap));
+        if(Q.colorMode==='maqueta') col.set(l%2?'#E9E8E3':'#F5F4F0');
+        else if(Q.colorMode==='planta') col.set(mix(lo,hi,l/Math.max(1,Q.maxH-1)));
+        else col.set(P3[p]);
+        mesh.setColorAt(i,col); i++;
+      }
+    }
+    mesh.instanceMatrix.needsUpdate=true; if(mesh.instanceColor) mesh.instanceColor.needsUpdate=true;
+    root.add(mesh);
+  }
+  // cubiertas: terrazas y patios elevados
+  const tops=[];
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){ const t=M.type[y][x], hh=M.h[y][x]; if((t==='terraza'||t==='patioElevado')&&hh>0&&hh<=vis) tops.push([x,y,t,hh]); }
+  if(tops.length){
+    const mat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:0.9,metalness:0,side,clippingPlanes:clip});
+    const mesh=new THREE.InstancedMesh(unitGeo(),mat,tops.length); mesh.receiveShadow=true;
+    tops.forEach(([x,y,t,hh],i)=>{ const g=geo[y][x]; mesh.setMatrixAt(i,mtx(g,(hh-1)*step+fh*slab+0.04,g.w*gap*0.9,0.08,g.d*gap*0.9)); col.set(t==='patioElevado'?'#6CBF84':'#CFA97A'); mesh.setColorAt(i,col); });
+    mesh.instanceMatrix.needsUpdate=true; if(mesh.instanceColor) mesh.instanceColor.needsUpdate=true; root.add(mesh);
+  }
+  // patios en planta baja
+  const pts=[]; for(let y=0;y<N;y++) for(let x=0;x<N;x++) if(M.type[y][x]==='patio') pts.push([x,y]);
+  if(pts.length){
+    const mat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:1,metalness:0,clippingPlanes:clip});
+    const mesh=new THREE.InstancedMesh(unitGeo(),mat,pts.length); mesh.receiveShadow=true;
+    pts.forEach(([x,y],i)=>{ const g=geo[y][x]; mesh.setMatrixAt(i,mtx(g,0.03,g.w*0.98,0.06,g.d*0.98)); col.set('#E3D3AE'); mesh.setColorAt(i,col); });
+    mesh.instanceMatrix.needsUpdate=true; if(mesh.instanceColor) mesh.instanceColor.needsUpdate=true; root.add(mesh);
+  }
+  // contorno de la parcela y línea de retranqueo
+  if(Q.parcelaOn){
+    const a=Q.parcAncho/2, f=Q.parcFondo/2, r=Q.parcRetiro, pos=[];
+    const rect=(x0,z0,x1,z1)=>{ const c=[[x0,z0],[x1,z0],[x1,z1],[x0,z1]]; for(let k=0;k<4;k++){ const p=c[k], q=c[(k+1)%4]; pos.push(p[0],0.05,p[1],q[0],0.05,q[1]); } };
+    rect(-a,-f,a,f); if(r>0) rect(-a+r,-f+r,a-r,f-r);
+    const pg=new THREE.BufferGeometry(); pg.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+    root.add(new THREE.LineSegments(pg,new THREE.LineBasicMaterial({color:0xF0281C})));
+  }
+  // trama dibujada en el suelo
+  if(Q.showGrid){
+    const pos=[], v=new THREE.Vector3(), HR=0.57735, corners=Q.trama==='hexagonal'?[0,1,2,3,4,5].map(k=>[HR*Math.sin(k*Math.PI/3),HR*Math.cos(k*Math.PI/3)]):[[-0.5,-0.5],[0.5,-0.5],[0.5,0.5],[-0.5,0.5]];
+    for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+      const m4=mtx(geo[y][x],0.02,geo[y][x].w,1,geo[y][x].d).clone(); const p4=corners.map(([a,b])=>v.set(a,0,b).applyMatrix4(m4).toArray());
+      for(let k=0;k<p4.length;k++){ pos.push(...p4[k],...p4[(k+1)%p4.length]); }
+    }
+    const gg=new THREE.BufferGeometry(); gg.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+    const lines=new THREE.LineSegments(gg,new THREE.LineBasicMaterial({color:new THREE.Color(css('--ink')),transparent:true,opacity:0.22}));
+    root.add(lines);
+  }
+  // luz
+  const sun=T3.sun; sun.target.position.copy(center); sun.position.set(center.x+R*0.9,center.y+R*1.6,center.z+R*0.5);
+  const sc=sun.shadow.camera; sc.left=-R*1.3; sc.right=R*1.3; sc.top=R*1.3; sc.bottom=-R*1.3; sc.near=0.5; sc.far=R*5; sc.updateProjectionMatrix();
+  return {area,built,maxF};
+}
+let rebuildPending=false, frameNext=false;
+function rebuild3D(frame){
+  if(frame) frameNext=true;
+  if(rebuildPending) return; rebuildPending=true;
+  requestAnimationFrame(()=>{
+    rebuildPending=false;
+    if(currentView!=='edificio'||!ensure3D()) return;
+    const M=getModel(), info=buildScene(M,P,{frame:frameNext}); frameNext=false;
+    updateCamera(); renderStats(M,info);
+  });
+}
+function renderStats(M,info){
+  $('#stats').innerHTML=`<dt>Huella</dt><dd>${fmtNum(info.area)} m²</dd><dt>Superficie construida</dt><dd>${fmtNum(info.built)} m²</dd><dt>Plantas</dt><dd>${info.maxF}</dd><dt>Patios en planta baja</dt><dd>${M.patios}</dd><dt>Patios en altura</dt><dd>${M.elevated.length}</dd><dt>Casillas de terraza</dt><dd>${M.terr}</dd>`;
+}
+$$('[data-cam]').forEach(b=>b.addEventListener('click',()=>{ if(ensure3D()) setCam(b.dataset.cam); }));
+$('#rot-l').addEventListener('click',()=>{ if(ensure3D()) rotateView(-1); });
+$('#b-stats').addEventListener('click',()=>{ const st=$('#stats'), on=!st.classList.contains('show'); st.classList.toggle('show',on); $('#b-stats').setAttribute('aria-pressed',String(on)); });
+$('#rot-r').addEventListener('click',()=>{ if(ensure3D()) rotateView(1); });
+$('#rot-auto').addEventListener('click',()=>{ if(!ensure3D()) return; if(spinOn){ stopSpin(); return; } tweenId++; spinOn=true; $('#rot-auto').setAttribute('aria-pressed','true'); requestAnimationFrame(spinLoop); });
+
+/* ---------- controles ---------- */
+const fmt={
+  module:v=>`${String(v).replace('.',',')} m`, tartan:v=>`${Math.round(v*100)} % del módulo`, oblique:v=>`${v}°`, arc:v=>`${v}°`, radialCore:v=>`${String(v).replace('.',',')} módulos`,
+  maxH:v=>`${v} ${v>1?'plantas':'planta'}`, step:v=>`${v} ${v>1?'plantas':'planta'} menos por casilla`, fh:v=>`${v.toFixed(1).replace('.',',')} m`,
+  minVoid:v=>v===1?'Cualquier hueco':`${v} casillas`, parcAncho:v=>`${v} m`, parcFondo:v=>`${v} m`, parcRetiro:v=>`${String(v).replace('.',',')} m`, ratio:v=>`${String(v).replace('.',',')} / 1`, patiosAlt:v=>v?`${v}`:'Ninguno', patioSeed:v=>`Variante ${v+1}`,
+  explode:v=>v?`${String(v).replace('.',',')} m`:'No', viewLevel:v=>v>=P.maxH?'Todas':`Hasta la planta ${v}`, section:v=>v>=100?'Sin corte':`${v} %`
+};
+function buildRoles(){
+  const box=$('#roles'); box.innerHTML='';
+  PLAYERS.forEach((pl,i)=>{
+    const d=document.createElement('div'); d.className='role';
+    d.innerHTML=`<i style="background:var(--${pl.key})"></i><select aria-label="Uso del color ${pl.name}">${Object.entries(CONFIG.roleNames).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select><input type="number" min="1" max="20" step="1" aria-label="Plantas máximas del color ${pl.name}">`;
+    const s=$('select',d), n=$('input',d);
+    s.addEventListener('change',()=>{ P.roles[i]=s.value; onParam('roles'); });
+    n.addEventListener('change',()=>{ const v=Math.max(1,Math.min(20,parseInt(n.value,10)||1)); n.value=v; P.colorMax[i]=v; onParam('colorMax'); });
+    box.appendChild(d);
+  });
+}
+function syncControls(){
+  $$('[data-p]').forEach(el=>{ const v=P[el.dataset.p]; if(el.type==='checkbox') el.checked=!!v; else el.value=v; });
+  $$('[data-o]').forEach(o=>{ const k=o.dataset.o; o.textContent=fmt[k]?fmt[k](P[k]):P[k]; });
+  $$('[data-trama]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.trama===P.trama)));
+  $$('#roles .role').forEach((d,i)=>{ $('select',d).value=P.roles[i]; $('input',d).value=P.colorMax[i]; });
+  $('#ctl-tartan').hidden=P.trama!=='tartan'; 
+  $('#ctl-arc').hidden=P.trama!=='radial'; $('#ctl-core').hidden=P.trama!=='radial';
+  $('#p-viewLevel').max=P.maxH; if(P.viewLevel>P.maxH){ P.viewLevel=P.maxH; $('#p-viewLevel').value=P.maxH; }
+  $('[data-o="viewLevel"]').textContent=fmt.viewLevel(P.viewLevel);
+}
+const FRAME_KEYS=['trama','module','tartan','arc','radialCore','parcelaOn','parcAncho','parcFondo','parcRetiro','parcModo'];
+function onParam(k){
+  if(k==='maxH'&&P.viewLevel>=($('#p-viewLevel').dataset.prevMax|0)) P.viewLevel=P.maxH;
+  $('#p-viewLevel').dataset.prevMax=P.maxH;
+  MODEL=null; saveParams(); syncControls(); rebuild3D(FRAME_KEYS.includes(k));
+  if(currentView==='parcela') drawParcel();
+}
+function cellPoly(g){
+  if(g.hex){ const rx=g.w*0.57735, rz=g.d*0.57735; return [0,1,2,3,4,5].map(k=>[g.cx+rx*Math.sin(k*Math.PI/3), g.cz+rz*Math.cos(k*Math.PI/3)]); }
+  const cr=Math.cos(g.rot), sr=Math.sin(g.rot), hw=g.w/2, hd=g.d/2;
+  return [[-hw,-hd],[hw,-hd],[hw,hd],[-hw,hd]].map(([a,b])=>{ const ax=a+g.shear*b; return [g.cx+ax*cr+b*sr, g.cz-ax*sr+b*cr]; });
+}
+function drawParcel(){
+  const svg=$('#parcel-svg'); if(!svg) return;
+  const M=getModel(), L=tramaLayout(P), [mx,mz]=modXZ(P);
+  const polys=[]; let x0=Infinity,x1=-Infinity,z0=Infinity,z1=-Infinity, area=0, built=0, maxF=0;
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+    const g=L(x,y), pg=cellPoly(g), h=M.h[y][x];
+    for(const [a,b] of pg){ x0=Math.min(x0,a); x1=Math.max(x1,a); z0=Math.min(z0,b); z1=Math.max(z1,b); }
+    polys.push({pg,h,t:M.type[y][x]});
+    if(h>0){ const ar=g.hex?g.w*g.d*0.866:g.w*g.d; area+=ar; built+=ar*h; maxF=Math.max(maxF,h); }
+  }
+  let px0=x0,px1=x1,pz0=z0,pz1=z1;
+  if(P.parcelaOn){ px0=-P.parcAncho/2; px1=P.parcAncho/2; pz0=-P.parcFondo/2; pz1=P.parcFondo/2; }
+  const bx0=Math.min(x0,px0), bx1=Math.max(x1,px1), bz0=Math.min(z0,pz0), bz1=Math.max(z1,pz1);
+  const pad=Math.max(bx1-bx0,bz1-bz0)*0.08;
+  svg.setAttribute('viewBox',`${bx0-pad} ${bz0-pad} ${bx1-bx0+2*pad} ${bz1-bz0+2*pad}`);
+  const sw=(bx1-bx0)/700, lo=css('--ramp-lo'), hi=css('--ramp-hi'), ink=css('--ink');
+  let out='';
+  if(P.parcelaOn){
+    out+=`<rect x="${px0}" y="${pz0}" width="${px1-px0}" height="${pz1-pz0}" fill="none" stroke="${css('--red')}" stroke-width="${sw*2.5}"/>`;
+    const r=P.parcRetiro; if(r>0) out+=`<rect x="${px0+r}" y="${pz0+r}" width="${px1-px0-2*r}" height="${pz1-pz0-2*r}" fill="none" stroke="${css('--red')}" stroke-width="${sw}" stroke-dasharray="${sw*6} ${sw*4}"/>`;
+  }
+  for(const c of polys){
+    let fill=null;
+    if(c.h>0) fill=c.t==='patioElevado'?css('--leaf'):mix(lo,hi,0.15+0.85*c.h/Math.max(1,P.maxH));
+    else if(c.t==='patio') fill=css('--sand');
+    out+=`<path d="M${c.pg.map(p=>p[0].toFixed(2)+' '+p[1].toFixed(2)).join('L')}Z" fill="${fill||'none'}" stroke="${fill?ink:css('--line')}" stroke-width="${sw*(fill?0.6:0.4)}"/>`;
+  }
+  const fs=sw*13, fmtm=v=>v.toLocaleString('es-ES',{maximumFractionDigits:1});
+  if(P.parcelaOn){
+    out+=`<text x="${(px0+px1)/2}" y="${pz0-fs*0.8}" font-size="${fs}" text-anchor="middle" fill="${ink}" font-family="Archivo, Arial" font-weight="700">${fmtm(P.parcAncho)} m</text>`;
+    out+=`<text x="${px1+fs*0.6}" y="${(pz0+pz1)/2}" font-size="${fs}" fill="${ink}" font-family="Archivo, Arial" font-weight="700" transform="rotate(90 ${px1+fs*0.6} ${(pz0+pz1)/2})" text-anchor="middle">${fmtm(P.parcFondo)} m</text>`;
+  }
+  svg.innerHTML=out;
+  const sup=P.parcelaOn?P.parcAncho*P.parcFondo:null;
+  const rows=[['Módulo',`${fmtm(mx)} × ${fmtm(mz)} m`],['Plantas máximas',String(maxF)],['Huella',`${fmtNum(area)} m²`],['Superficie construida',`${fmtNum(built)} m²`]];
+  if(sup){ rows.unshift(['Superficie de parcela',`${fmtNum(sup)} m²`]); rows.push(['Ocupación',`${Math.round(area/sup*100)} %`],['Edificabilidad',`${(built/sup).toLocaleString('es-ES',{maximumFractionDigits:2})} m²/m²`]); }
+  $('#parcel-stats').innerHTML=rows.map(([a,b])=>`<dt>${a}</dt><dd>${b}</dd>`).join('');
+}
+$$('[data-p]').forEach(el=>{
+  const h=()=>{ const k=el.dataset.p; P[k]= el.type==='checkbox'?el.checked : (el.type==='range'||el.type==='number')?parseFloat(el.value):el.value; onParam(k); };
+  el.addEventListener('input',h); if(el.tagName==='SELECT'||el.type==='checkbox') el.addEventListener('change',h);
+});
+$$('[data-trama]').forEach(b=>b.addEventListener('click',()=>{ P.trama=b.dataset.trama; onParam('trama'); }));
+$('#b-reset').addEventListener('click',()=>{ P=clone(CONFIG.defaults); MODEL=null; saveParams(); syncControls(); rebuild3D(true); toast('Reglas restablecidas'); });
+
+/* =========================================================
+   4. CATÁLOGO
+   ========================================================= */
+const TRAMAS=[['ortogonal','Ortogonal'],['tartan','Tartán'],['tresbolillo','Tresbolillo'],['hexagonal','Hexagonal'],['radial','Radial']];
+const RULES=[['vacios','Grandes vacíos'],['orden','Orden de juego'],['tamano','Tamaño de pieza'],['uniforme','Uniforme']];
+let catToken=0;
+function catalogSkeleton(){
+  const box=$('#catalog'); box.innerHTML='<div></div>'+RULES.map(r=>`<div class="cat-h">${r[1]}</div>`).join('');
+  TRAMAS.forEach(([tk,tn])=>{
+    box.insertAdjacentHTML('beforeend',`<div class="cat-r">${tn}</div>`);
+    RULES.forEach(([rk,rn])=>{
+      const b=document.createElement('button'); b.className='cat-cell'+(P.trama===tk&&P.rule===rk?' on':''); b.type='button';
+      b.dataset.t=tk; b.dataset.r=rk; b.setAttribute('aria-label',`Trama ${tn}, regla ${rn}`);
+      b.innerHTML=`<canvas width="360" height="260"></canvas><span>${tn}, ${rn.toLowerCase()}</span>`;
+      b.addEventListener('click',()=>{ P.trama=tk; P.rule=rk; MODEL=null; saveParams(); syncControls(); frameNext=true; location.hash='#edificio'; });
+      box.appendChild(b);
+    });
+  });
+}
+async function renderCatalog(){
+  if(!S.placements.length){ $('#cat-status').textContent='Juega una partida primero: el catálogo sale de ella.'; return; }
+  if(!ensure3D()) return;
+  const token=++catToken; catalogSkeleton();
+  const r=T3.renderer, pr=r.getPixelRatio(), orbit={theta:T3.orbit.theta,phi:T3.orbit.phi,zoom:T3.orbit.zoom,target:T3.orbit.target.clone()}, cam=T3.cam;
+  r.setPixelRatio(1); T3.cam=T3.ortho;
+  const cells=$$('#catalog .cat-cell'); let n=0;
+  for(const b of cells){
+    if(token!==catToken) break;
+    const Q=Object.assign(clone(P),{trama:b.dataset.t,rule:b.dataset.r,viewLevel:99,section:100,explode:0});
+    const M=computeModel(S,Q);
+    const info=buildScene(M,Q,{frame:true});
+    T3.orbit.theta=ORBIT_PRESETS.axo.theta; T3.orbit.phi=ORBIT_PRESETS.axo.phi; T3.orbit.zoom=1.08;
+    r.setSize(360,260,false); updateCamera(360/260); r.render(T3.scene,T3.cam);
+    const cv=$('canvas',b); cv.getContext('2d').drawImage(r.domElement,0,0,360,260);
+    $('span',b).textContent=`${TRAMAS.find(t=>t[0]===Q.trama)[1]}, ${RULES.find(t=>t[0]===Q.rule)[1].toLowerCase()}: ${fmtNum(info.built)} m²`;
+    n++; $('#cat-status').textContent=`Generando ${n} de ${cells.length}`;
+    await new Promise(res=>setTimeout(res,0));
+  }
+  r.setPixelRatio(pr); T3.cam=cam; Object.assign(T3.orbit,{theta:orbit.theta,phi:orbit.phi,zoom:orbit.zoom}); T3.orbit.target.copy(orbit.target);
+  T3.framed=true; resize3D(); MODEL=null;
+  if(token===catToken) $('#cat-status').textContent='Catálogo listo. Pulsa una variante para abrirla.';
+}
+$('#b-cat').addEventListener('click',renderCatalog);
+$('#b-cat-png').addEventListener('click',async()=>{
+  const cv=$$('#catalog canvas'); if(!cv.length){ toast('Genera primero el catálogo'); return; }
+  const cols=4, w=360, h=260, gap=24, head=60, lab=120;
+  const out=document.createElement('canvas'); out.width=lab+cols*(w+gap); out.height=head+TRAMAS.length*(h+gap);
+  const ctx=out.getContext('2d'); ctx.fillStyle='#FFFFFF'; ctx.fillRect(0,0,out.width,out.height);
+  ctx.fillStyle='#000000'; ctx.font='700 20px Archivo, Arial'; ctx.textBaseline='middle';
+  RULES.forEach((r,i)=>ctx.fillText(r[1],lab+i*(w+gap),head/2));
+  TRAMAS.forEach((t,j)=>{ ctx.fillText(t[1],8,head+j*(h+gap)+h/2); for(let i=0;i<cols;i++){ const c=cv[j*cols+i]; if(c) ctx.drawImage(c,lab+i*(w+gap),head+j*(h+gap),w,h); } });
+  out.toBlob(b=>saveFile('catalogo-variantes.png',b),'image/png');
+});
+
+/* =========================================================
+   5. EXPORTAR
+   ========================================================= */
+let dlNS; const dlReady=(async()=>{ try{ dlNS=(window.claude&&typeof window.claude.use==='function')? await window.claude.use('downloads') : null; }catch(e){ dlNS=null; } })();
+async function saveFile(filename,data){
+  if(window.claude&&typeof window.claude.use==='function'){
+    await Promise.race([dlReady,new Promise(r=>setTimeout(r,1500))]);
+    if(dlNS){ try{ await dlNS.save({filename,data}); toast('Guardado: '+filename); return; }
+      catch(e){ if(e&&e.code==='declined'){ toast('Descarga cancelada'); return; } if(e&&e.code==='rate_limited'){ toast('Espera un momento y vuelve a intentarlo'); return; } } }
+  }
+  try{
+    const blob=data instanceof Blob?data:new Blob([data],{type:'text/plain;charset=utf-8'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },2000); toast('Descargando '+filename);
+  }catch(e){ toast('No se ha podido descargar. Copia el texto de la vista previa.'); }
+}
+const r2=v=>(Math.round(v*100)/100).toString();
+function csvGH(){
+  const M=getModel(), L=tramaLayout(P);
+  const rows=['i,j,x_m,y_m,ancho_m,fondo_m,giro_grados,cizalla,color,jugador,pieza,forma,tamano,distancia,plantas,altura_m,rol,tipo,celda'];
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+    const g=L(x,y), v=S.board[y][x], idx=S.piece[y][x], pl=idx?S.placements[idx-1]:null;
+    rows.push([x,y,r2(g.cx),r2(-g.cz),r2(g.w),r2(g.d),r2(g.rot*180/Math.PI),r2(-g.shear),v,v?PLAYERS[v-1].name:'',idx||0,pl?PIECES[pl.pi].n:'',pl?pl.cells.length:0,M.dist[y][x],M.h[y][x],r2(M.h[y][x]*P.fh),v?P.roles[v-1]:'',M.type[y][x],g.hex?'hexagono':'rectangulo'].join(','));
+  }
+  return rows.join('\n');
+}
+function csvMatrix(fn){ const rows=[]; for(let y=0;y<N;y++){ const r=[]; for(let x=0;x<N;x++) r.push(fn(x,y)); rows.push(r.join(',')); } return rows.join('\n'); }
+function gameJSON(){ return JSON.stringify({app:'trama',version:1,fecha:new Date().toISOString(),placements:S.placements,current:S.current,passed:S.passed,over:S.over,control,params:P},null,1); }
+const DL={
+  gh:()=>saveFile('casillas.csv',csvGH()),
+  'm-color':()=>saveFile('matriz-colores.csv',csvMatrix((x,y)=>S.board[y][x])),
+  'm-h':()=>saveFile('matriz-plantas.csv',csvMatrix((x,y)=>getModel().h[y][x])),
+  'm-turn':()=>saveFile('matriz-orden.csv',csvMatrix((x,y)=>S.piece[y][x])),
+  'm-dist':()=>saveFile('matriz-distancias.csv',csvMatrix((x,y)=>getModel().dist[y][x])),
+  json:()=>saveFile('partida.json',gameJSON())
+};
+$$('[data-dl]').forEach(b=>b.addEventListener('click',()=>DL[b.dataset.dl]()));
+$('#b-copy-gh').addEventListener('click',async()=>{
+  const t=$('#t-gh');
+  try{ await navigator.clipboard.writeText(t.value); toast('Script copiado'); }
+  catch(e){ t.focus(); t.select(); try{ document.execCommand('copy'); toast('Script copiado'); }catch(_){ toast('Selecciona el texto y cópialo a mano'); } }
+});
+$('#b-copy').addEventListener('click',async()=>{
+  const t=$('#t-csv'); t.value=csvGH();
+  try{ await navigator.clipboard.writeText(t.value); toast('CSV copiado'); }
+  catch(e){ t.focus(); t.select(); try{ document.execCommand('copy'); toast('CSV copiado'); }catch(_){ toast('Selecciona el texto y cópialo a mano'); } }
+});
+function addShot(blob,name){
+  const r=new FileReader();
+  r.onload=()=>{ const f=document.createElement('figure'); f.innerHTML=`<img alt="${name}" src="${r.result}"><figcaption>${name}. Si no se descarga, haz clic derecho y guarda la imagen.</figcaption>`; $('#shots').prepend(f); };
+  r.readAsDataURL(blob);
+}
+function exportBoardPNG(){
+  const size=1800, c=document.createElement('canvas'); c.width=c.height=size;
+  drawBoardTo(c.getContext('2d'),size,{});
+  c.toBlob(b=>{ addShot(b,'tablero.png'); saveFile('tablero.png',b); },'image/png');
+}
+function exportDiagramsPNG(){
+  const s=700, gap=40, cap=70, W=3*s+4*gap, H=2*(s+cap)+3*gap, c=document.createElement('canvas'); c.width=W; c.height=H;
+  const ctx=c.getContext('2d'); ctx.fillStyle=css('--paper'); ctx.fillRect(0,0,W,H);
+  const kinds=[['partida','1  Partida'],['numeros','2  Matriz'],['orden','3  Orden de juego'],['vacios','4  Vacíos'],['alturas','5  Alturas'],['espacios','6  Espacios']];
+  kinds.forEach(([k,t],i)=>{
+    const X=gap+(i%3)*(s+gap), Y=gap+Math.floor(i/3)*(s+cap+gap);
+    ctx.save(); ctx.translate(X,Y); drawDiagram(ctx,s,k); ctx.restore();
+    ctx.strokeStyle=css('--ink'); ctx.lineWidth=3; ctx.strokeRect(X,Y,s,s);
+    ctx.fillStyle=css('--ink'); ctx.font='750 30px Archivo, Arial'; ctx.textBaseline='top'; ctx.fillText(t,X,Y+s+18);
+  });
+  c.toBlob(b=>{ addShot(b,'diagramas.png'); saveFile('diagramas.png',b); },'image/png');
+}
+function exportBuildingPNG(){
+  const wasView=currentView;
+  if(!ensure3D()){ toast('El 3D no está disponible'); return; }
+  const r=T3.renderer, pr=r.getPixelRatio(), W=2400, H=1600;
+  if(wasView!=='edificio'){ buildScene(getModel(),P,{}); }
+  r.setPixelRatio(1); r.setSize(W,H,false); updateCamera(W/H); r.render(T3.scene,T3.cam);
+  r.domElement.toBlob(b=>{ r.setPixelRatio(pr); resize3D(); addShot(b,'edificio.png'); saveFile('edificio.png',b); },'image/png');
+}
+$$('[data-img]').forEach(b=>b.addEventListener('click',()=>({board:exportBoardPNG,diagrams:exportDiagramsPNG,building:exportBuildingPNG})[b.dataset.img]()));
+$('#b-shot').addEventListener('click',exportBuildingPNG);
+function loadFromText(txt){
+  try{
+    const g=JSON.parse(txt); if(!g||!Array.isArray(g.placements)) throw new Error('formato');
+    clearTimeout(botTimer); autoAll=false;
+    S=rebuildState(g); if(Array.isArray(g.control)) control=g.control.map(c=>c==='bot'?'bot':'human');
+    if(g.params&&typeof g.params==='object') for(const k in CONFIG.defaults) if(k in g.params) P[k]=g.params[k];
+    sanitizeParams();
+    MODEL=null; saveParams(); syncControls(); afterChange(); updateExportPreview();
+    toast(`Partida cargada: ${S.placements.length} piezas`);
+  }catch(e){ toast('El archivo no es una partida válida'); }
+}
+$('#f-load').addEventListener('change',e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>loadFromText(rd.result); rd.readAsText(f); e.target.value=''; });
+$('#b-load').addEventListener('click',()=>{ const t=$('#t-load').value.trim(); if(!t){ toast('Pega primero el contenido de partida.json'); return; } loadFromText(t); });
+function updateExportPreview(){ $('#t-csv').value=csvGH(); }
+
+/* =========================================================
+   0. REFERENCIAS: galería compartida
+   ========================================================= */
+const REF={db:null,uid:null,admin:false,canWrite:true,items:[],shared:false,editing:null,image:null};
+const REF_KEY='arquitectura-referencias';
+function refLocalLoad(){ const v=store.get(REF_KEY); return Array.isArray(v)?v:[]; }
+function refLocalSave(){ try{ localStorage.setItem(REF_KEY,JSON.stringify(REF.items)); return true; }catch(e){ return false; } }
+function refStatus(t){ $('#ref-status').textContent=t; }
+function refId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+function refCanModify(it){ return REF.shared ? (REF.admin || !it.autor || (!!REF.uid && it.autor===REF.uid)) : true; }
+function readAsDataURL(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file); }); }
+async function compressImage(file){
+  const src=await readAsDataURL(file);
+  const img=await new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=src; });
+  let max=1400, q=0.82, out='';
+  for(let t=0;t<9;t++){
+    const s=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight));
+    const c=document.createElement('canvas'); c.width=Math.max(1,Math.round(img.naturalWidth*s)); c.height=Math.max(1,Math.round(img.naturalHeight*s));
+    const ctx=c.getContext('2d'); ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,c.width,c.height); ctx.drawImage(img,0,0,c.width,c.height);
+    out=c.toDataURL('image/jpeg',q);
+    if(out.length<190000) break;
+    max=Math.round(max*0.82); q=Math.max(0.55,q-0.05);
+  }
+  return out;
+}
+const REF_CATS_DEFAULT=[['matrices','Matrices geométricas'],['agregativos','Sistemas agregativos'],['mat','Mat-building'],['residenciales','Matrices residenciales contemporáneas'],['patios','Patios']];
+let REF_CATS=Object.fromEntries(REF_CATS_DEFAULT);
+const CAT_KEY='arquitectura-categorias';
+const escH=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+(function(){ const v=store.get(CAT_KEY); if(Array.isArray(v)&&v.length){ const ok=v.filter(c=>Array.isArray(c)&&c[0]&&c[1]); if(ok.length) REF_CATS=Object.fromEntries(ok); } })();
+function renderCatOptions(){
+  const opts=Object.entries(REF_CATS).map(([k,v])=>`<option value="${escH(k)}">${escH(v)}</option>`).join('');
+  const f=$('#ref-filter'), fv=f.value; f.innerHTML='<option value="">Todas las categorías</option>'+opts+'<option value="_none">Sin categoría</option>';
+  f.value=[...f.options].some(o=>o.value===fv)?fv:'';
+  const c=$('#ref-cat'), cv=c.value; c.innerHTML='<option value="">Sin categoría</option>'+opts;
+  c.value=[...c.options].some(o=>o.value===cv)?cv:'';
+  renderCatRows();
+}
+function renderCatRows(){
+  const box=$('#cat-rows'); box.textContent='';
+  for(const [id,name] of Object.entries(REF_CATS)){
+    const row=document.createElement('div'); row.className='cat-row';
+    const inp=document.createElement('input'); inp.type='text'; inp.maxLength=60; inp.value=name; inp.dataset.id=id; inp.setAttribute('aria-label','Nombre de la categoría');
+    const del=document.createElement('button'); del.type='button'; del.className='btn sm warn'; del.textContent='Borrar';
+    let armed=null;
+    del.addEventListener('click',()=>{ if(!armed){ del.textContent='¿Seguro?'; armed=setTimeout(()=>{ armed=null; del.textContent='Borrar'; },3000); return; }
+      clearTimeout(armed); delete REF_CATS[id]; saveCats('Categoría borrada'); });
+    row.append(inp,del); box.appendChild(row);
+  }
+}
+async function saveCats(msg){
+  const lista=Object.entries(REF_CATS);
+  try{
+    if(REF.shared&&REF.db) await REF.db.collection('ajustes').doc('categorias').set({lista:lista.map(([id,nombre])=>({id,nombre}))});
+    else store.set(CAT_KEY,lista);
+    if(msg) toast(msg);
+  }catch(e){ toast('No se han podido guardar las categorías'); }
+  renderCatOptions(); renderRefs();
+}
+renderCatOptions();
+$('#cat-open').addEventListener('click',()=>{ const p=$('#cat-panel'); p.hidden=!p.hidden; if(!p.hidden) $('#cat-new').focus(); });
+$('#cat-close').addEventListener('click',()=>{ $('#cat-panel').hidden=true; });
+$('#cat-add').addEventListener('click',()=>{
+  const n=$('#cat-new').value.trim(); if(!n){ toast('Escribe el nombre de la categoría'); return; }
+  if(Object.values(REF_CATS).some(v=>v.toLowerCase()===n.toLowerCase())){ toast('Esa categoría ya existe'); return; }
+  const id=n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,30)+'-'+Math.random().toString(36).slice(2,6);
+  REF_CATS[id]=n; $('#cat-new').value=''; saveCats('Categoría añadida');
+});
+$('#cat-new').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); $('#cat-add').click(); } });
+$('#cat-save').addEventListener('click',()=>{
+  $$('#cat-rows input').forEach(i=>{ const v=i.value.trim(); if(v) REF_CATS[i.dataset.id]=v; });
+  saveCats('Nombres guardados');
+});
+function renderRefs(){
+  const box=$('#refs'); box.textContent='';
+  const sort=$('#ref-sort').value, filt=$('#ref-filter').value;
+  let items=[...REF.items];
+  if(filt==='_none') items=items.filter(it=>!REF_CATS[it.categoria]); else if(filt) items=items.filter(it=>it.categoria===filt);
+  const yr=it=>{ const m=String(it.anio||'').match(/\d{3,4}/); return m?parseInt(m[0],10):99999; };
+  if(sort==='anio') items.sort((a,b)=>yr(a)-yr(b)||String(a.titulo).localeCompare(String(b.titulo),'es'));
+  else if(sort==='titulo') items.sort((a,b)=>String(a.titulo).localeCompare(String(b.titulo),'es'));
+  else items.sort((a,b)=>(b.creado||0)-(a.creado||0));
+  if(!items.length){
+    const e=document.createElement('div'); e.className='empty';
+    e.textContent=REF.items.length?'No hay referencias en esta categoría.':(REF.canWrite?'Todavía no hay referencias. Pulsa «Añadir referencia» y sube la primera foto.':'Todavía no hay referencias en esta galería.');
+    box.appendChild(e); return;
+  }
+  for(const it of items){
+    const f=document.createElement('figure'); f.className='ref'; f.tabIndex=0; f.setAttribute('role','button'); f.setAttribute('aria-label','Abrir '+(it.titulo||'referencia'));
+    const okImg=typeof it.imagen==='string'&&it.imagen.startsWith('data:image/');
+    if(okImg){ const im=document.createElement('img'); im.src=it.imagen; im.alt=''; im.loading='lazy'; f.appendChild(im); }
+    else { const ph=document.createElement('div'); ph.className='ph'; ph.setAttribute('aria-hidden','true'); f.appendChild(ph); }
+    const cap=document.createElement('figcaption');
+    const t=document.createElement('strong'); t.textContent=it.titulo||'Sin título'; cap.appendChild(t);
+    const meta=[it.autores,it.anio].filter(Boolean).join(', ');
+    if(meta){ const m=document.createElement('span'); m.className='meta'; m.textContent=meta; cap.appendChild(m); }
+    if(it.principio){ const pr=document.createElement('span'); pr.className='principle'; pr.textContent=it.principio; cap.appendChild(pr); }
+    if(REF_CATS[it.categoria]){ const tg=document.createElement('span'); tg.className='tag'; tg.textContent=REF_CATS[it.categoria]; cap.appendChild(tg); }
+    f.appendChild(cap);
+    f.addEventListener('click',()=>openLightbox(it));
+    f.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openLightbox(it); } });
+    box.appendChild(f);
+  }
+}
+function openRefForm(it){
+  REF.editing=it||null; REF.image=it&&it.imagen||null;
+  $('#ref-title').value=it?it.titulo||'':''; $('#ref-year').value=it?it.anio||'':''; $('#ref-authors').value=it?it.autores||'':'';
+  $('#ref-cat').value=it&&REF_CATS[it.categoria]?it.categoria:''; $('#ref-principle').value=it?it.principio||'':'';
+  const pv=$('#ref-preview'); if(REF.image){ pv.src=REF.image; pv.hidden=false; } else { pv.removeAttribute('src'); pv.hidden=true; }
+  $('#ref-file-name').textContent=REF.image?'Foto actual':'Sin foto';
+  $('#ref-save').textContent=it?'Guardar cambios':'Guardar referencia';
+  $('#ref-form').hidden=false; $('#ref-form').scrollIntoView({block:'nearest'}); $('#ref-title').focus();
+}
+function closeRefForm(){ $('#ref-form').hidden=true; REF.editing=null; REF.image=null; $('#ref-file').value=''; }
+$('#ref-add').addEventListener('click',()=>openRefForm(null));
+$('#ref-cancel').addEventListener('click',closeRefForm);
+$('#ref-sort').addEventListener('change',renderRefs);
+$('#ref-filter').addEventListener('change',renderRefs);
+$('#ref-file').addEventListener('change',async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  if(!/^image\//.test(f.type)){ toast('Elige un archivo de imagen'); return; }
+  $('#ref-file-name').textContent='Preparando la foto…';
+  try{ REF.image=await compressImage(f); const pv=$('#ref-preview'); pv.src=REF.image; pv.hidden=false; $('#ref-file-name').textContent=f.name; }
+  catch(err){ REF.image=null; $('#ref-file-name').textContent='No se ha podido leer esa imagen'; }
+});
+async function writeRef(id,doc){
+  if(REF.shared){ await REF.db.collection('referencias').doc(id).set(doc); return true; }
+  const i=REF.items.findIndex(x=>x.id===id); const row=Object.assign({id},doc);
+  if(i>=0) REF.items[i]=row; else REF.items.push(row);
+  if(!refLocalSave()){ if(i<0) REF.items.pop(); return false; }
+  return true;
+}
+$('#ref-form').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const titulo=$('#ref-title').value.trim(), anio=$('#ref-year').value.trim(), autores=$('#ref-authors').value.trim();
+  const categoria=$('#ref-cat').value, principio=$('#ref-principle').value.trim();
+  if(!titulo){ toast('Escribe al menos el título'); $('#ref-title').focus(); return; }
+  const prev=REF.editing, id=prev?prev.id:refId();
+  const doc={titulo,anio,autores,categoria,principio,imagen:REF.image||'',creado:prev&&prev.creado?prev.creado:Date.now(),autor:prev&&prev.autor!=null?prev.autor:(REF.uid||'')};
+  const btn=$('#ref-save'); btn.disabled=true;
+  try{
+    if(!(await writeRef(id,doc))){ toast('No queda espacio en este navegador. Usa fotos más pequeñas.'); btn.disabled=false; return; }
+    if(!REF.shared) renderRefs();
+    toast(prev?'Referencia actualizada':'Referencia añadida'); closeRefForm();
+  }catch(err){
+    const c=err&&err.code;
+    toast(c==='invalid_argument'?'No tienes permiso para añadir referencias aquí. Pide acceso de colaborador.':c==='quota_exceeded'?'La galería está llena. Borra alguna referencia.':'No se ha podido guardar. Inténtalo de nuevo.');
+  }
+  btn.disabled=false;
+});
+async function deleteRef(it){
+  try{
+    if(REF.shared) await REF.db.collection('referencias').doc(it.id).delete();
+    else { REF.items=REF.items.filter(x=>x.id!==it.id); refLocalSave(); const g=store.get('arquitectura-referencias-borradas')||[]; g.push(it.id); store.set('arquitectura-referencias-borradas',g); renderRefs(); }
+    toast('Referencia borrada');
+  }catch(e){ toast('No se ha podido borrar'); }
+}
+let lbArmed=null;
+function openLightbox(it){
+  REF.current=it;
+  const okImg=typeof it.imagen==='string'&&it.imagen.startsWith('data:image/');
+  const im=$('#lb-img'); if(okImg){ im.src=it.imagen; im.alt=it.titulo||''; im.hidden=false; } else { im.removeAttribute('src'); im.hidden=true; }
+  $('#lb-ph').hidden=okImg;
+  $('#lb-cap').textContent=[it.titulo,[it.autores,it.anio].filter(Boolean).join(', '),it.principio,REF_CATS[it.categoria]].filter(Boolean).join('. ');
+  const can=REF.canWrite&&refCanModify(it);
+  $('#lb-edit').hidden=!can; $('#lb-del').hidden=!can;
+  clearTimeout(lbArmed); lbArmed=null; $('#lb-del').textContent='Borrar';
+  $('#lightbox').hidden=false; $('#lb-close').focus();
+}
+function closeLightbox(){ $('#lightbox').hidden=true; REF.current=null; }
+$('#lb-close').addEventListener('click',closeLightbox);
+$('#lb-edit').addEventListener('click',()=>{ const it=REF.current; closeLightbox(); if(it) openRefForm(it); });
+$('#lb-del').addEventListener('click',()=>{
+  const b=$('#lb-del');
+  if(!lbArmed){ b.textContent='Pulsa otra vez para borrar'; lbArmed=setTimeout(()=>{ lbArmed=null; b.textContent='Borrar'; },3000); return; }
+  clearTimeout(lbArmed); lbArmed=null; const it=REF.current; closeLightbox(); if(it) deleteRef(it);
+});
+$('#lightbox').addEventListener('click',e=>{ if(e.target.id==='lightbox') closeLightbox(); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&!$('#lightbox').hidden) closeLightbox(); });
+$('#ref-export').addEventListener('click',()=>{
+  if(!REF.items.length){ toast('No hay referencias que exportar'); return; }
+  const data=REF.items.map(({id,titulo,anio,autores,categoria,principio,imagen,creado})=>({id,titulo,anio,autores,categoria,principio,imagen,creado}));
+  saveFile('referencias.json',JSON.stringify({app:'arquitectura-es-jugar',tipo:'referencias',categorias:Object.entries(REF_CATS),items:data}));
+});
+$('#ref-import').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return; e.target.value='';
+  const r=new FileReader();
+  r.onload=async()=>{
+    let list;
+    try{ const j=JSON.parse(r.result); list=Array.isArray(j)?j:(j&&Array.isArray(j.items)?j.items:null); }catch(err){ list=null; }
+    if(!list){ toast('El archivo no tiene referencias válidas'); return; }
+    if(!REF.canWrite){ toast('No tienes permiso para añadir referencias aquí'); return; }
+    const key=it=>(String(it.titulo||'').trim().toLowerCase()+'|'+String(it.anio||'').trim());
+    const have=new Set(REF.items.map(key)); let n=0, skip=0;
+    refStatus('Importando…');
+    for(const it of list){
+      if(!it||typeof it.titulo!=='string'||!it.titulo.trim()){ skip++; continue; }
+      if(have.has(key(it))){ skip++; continue; }
+      const doc={titulo:it.titulo.trim().slice(0,120),anio:String(it.anio||'').slice(0,20),autores:String(it.autores||'').slice(0,160),
+        categoria:REF_CATS[it.categoria]?it.categoria:'',principio:String(it.principio||'').slice(0,120),
+        imagen:typeof it.imagen==='string'&&it.imagen.startsWith('data:image/')&&it.imagen.length<250000?it.imagen:'',
+        creado:Number(it.creado)||Date.now(),autor:REF.uid||''};
+      try{ if(await writeRef(refId(),doc)){ n++; have.add(key(it)); } else { toast('No queda espacio en este navegador'); break; } }
+      catch(err){ toast('Se ha detenido la importación: '+((err&&err.code)==='invalid_argument'?'sin permiso.':'error al guardar.')); break; }
+    }
+    if(!REF.shared) renderRefs();
+    refStatus('');
+    toast(`${n} referencias importadas`+(skip?`, ${skip} repetidas o vacías`:''));
+  };
+  r.readAsText(f);
+});
+async function loadSeedFile(){
+  // En una copia publicada en otro sitio (GitHub Pages, Netlify…): carga las referencias del archivo referencias.json que acompaña a index.html
+  try{
+    const r=await fetch('referencias.json',{cache:'no-store'}); if(!r.ok) return;
+    const j=await r.json(); const list=Array.isArray(j)?j:(j&&Array.isArray(j.items)?j.items:[]);
+    if(j&&Array.isArray(j.categorias)&&j.categorias.length&&!store.get(CAT_KEY)){ const ok=j.categorias.filter(c=>Array.isArray(c)&&c[0]&&c[1]); if(ok.length){ REF_CATS=Object.fromEntries(ok.map(c=>[String(c[0]),String(c[1])])); renderCatOptions(); } }
+    const gone=new Set(store.get('arquitectura-referencias-borradas')||[]), have=new Set(REF.items.map(x=>x.id)); let n=0;
+    for(const it of list){
+      if(!it||!it.id||typeof it.titulo!=='string'||have.has(String(it.id))||gone.has(String(it.id))) continue;
+      REF.items.push({id:String(it.id),titulo:it.titulo,anio:String(it.anio||''),autores:String(it.autores||''),categoria:String(it.categoria||''),principio:String(it.principio||''),
+        imagen:typeof it.imagen==='string'&&it.imagen.startsWith('data:image/')?it.imagen:'',creado:Number(it.creado)||0,autor:''});
+      n++;
+    }
+    if(n){ refLocalSave(); renderRefs(); }
+  }catch(e){}
+}
+async function initRefs(){
+  REF.items=refLocalLoad(); renderRefs();
+  refStatus('');
+  $('#cat-open').hidden=false;
+  if(!(window.claude&&typeof window.claude.use==='function')){ await loadSeedFile(); return; }
+  let db=null, user=null;
+  try{ [db,user]=await Promise.all([window.claude.use('db'),window.claude.use('user')]); }catch(e){ return; }
+  if(!db) return;
+  if(user){
+    try{ REF.uid=await user.id(); }catch(e){}
+    try{ REF.admin=!!(await user.isOwner())||!!(await user.canEdit()); }catch(e){}
+    try{ const w=await user.can('data.write'); if(w===false) REF.canWrite=false; }catch(e){}
+  }
+  $('#ref-add').hidden=!REF.canWrite; $('#cat-open').hidden=!REF.canWrite; $('label[for="ref-import"]').hidden=!REF.canWrite;
+  REF.db=db; refStatus('Cargando la galería…');
+  db.collection('ajustes').doc('categorias').onSnapshot(snap=>{
+    let l=snap.exists&&snap.data()?snap.data().lista:null;
+    if(Array.isArray(l)){ l=l.filter(c=>c&&c.id&&c.nombre); REF_CATS=Object.fromEntries(l.map(c=>[String(c.id),String(c.nombre)])); }
+    else REF_CATS=Object.fromEntries(REF_CATS_DEFAULT);
+    renderCatOptions(); renderRefs();
+  },()=>{});
+  const timer=setTimeout(()=>refStatus('La galería compartida aún no responde. Revisa la conexión.'),10000);
+  db.collection('referencias').onSnapshot(snap=>{
+    if(!snap.fromCache) clearTimeout(timer);
+    REF.shared=true;
+    REF.items=snap.docs.map(d=>Object.assign({id:d.id},d.data()));
+    refStatus('');
+    renderRefs();
+  },err=>{ clearTimeout(timer); REF.shared=false; REF.items=refLocalLoad(); refStatus('No se puede abrir la galería; las referencias se guardan en este navegador.'); renderRefs(); });
+}
+initRefs();
+
+/* =========================================================
+   NAVEGACIÓN ENTRE PASOS
+   ========================================================= */
+const VIEWS=['referencias','jugar','matriz','edificio','parcela','catalogo','exportar'];
+let currentView='jugar';
+function route(){
+  let v=location.hash.slice(1); if(!VIEWS.includes(v)) v='jugar';
+  currentView=v;
+  VIEWS.forEach(k=>{ $('#v-'+k).hidden=k!==v; });
+  $$('.steps a, .reflink').forEach(a=>{ if(a.dataset.v===v) a.setAttribute('aria-current','page'); else a.removeAttribute('aria-current'); });
+  if(v==='jugar') requestAnimationFrame(resizeBoard);
+  if(v==='matriz') requestAnimationFrame(drawDiagrams);
+  if(v==='edificio') requestAnimationFrame(()=>{ if(ensure3D()){ resize3D(); rebuild3D(); } });
+  if(v==='parcela') requestAnimationFrame(drawParcel);
+  if(v==='exportar') updateExportPreview();
+}
+window.addEventListener('hashchange',route);
+if(window.visualViewport) window.visualViewport.addEventListener('resize',()=>{ if(currentView==='jugar') resizeBoard(); });
+window.addEventListener('orientationchange',()=>setTimeout(()=>{ if(currentView==='jugar') resizeBoard(); if(currentView==='edificio') resize3D(); if(currentView==='parcela') drawParcel(); },250));
+window.addEventListener('resize',()=>{ if(currentView==='jugar') resizeBoard(); if(currentView==='matriz') drawDiagrams(); if(currentView==='parcela') drawParcel(); });
+if('ResizeObserver' in window) new ResizeObserver(()=>{ if(currentView==='jugar') resizeBoard(); }).observe($('#board-stage'));
+const mq=window.matchMedia('(prefers-color-scheme: dark)');
+const onScheme=()=>{ renderGame(); drawBoard(); if(currentView==='matriz') drawDiagrams(); if(currentView==='edificio') rebuild3D(); };
+if(mq.addEventListener) mq.addEventListener('change',onScheme); else if(mq.addListener) mq.addListener(onScheme);
+
+/* ---------- arranque ---------- */
+buildRoles(); syncControls(); $('#p-viewLevel').dataset.prevMax=P.maxH;
+renderGame(); route(); scheduleBot();
+if(document.fonts&&document.fonts.ready) document.fonts.ready.then(()=>{ drawBoard(); if(currentView==='matriz') drawDiagrams(); });
+})();
+</script>
+</body>
+</html>
